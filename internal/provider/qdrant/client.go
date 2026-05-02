@@ -7,6 +7,8 @@ import (
 	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
 	"github.com/ihgazi/vectorproxy/internal/engine"
 	"github.com/qdrant/go-client/qdrant"
+
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type Client struct {
@@ -30,22 +32,48 @@ func (c *Client) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 	}
 
 	qryLimit := uint64(req.TopK)
-	// TODO: Implement Filter options in search query
-	qryResp, err := c.qClient.Query(ctx, &qdrant.QueryPoints{
+
+	query := &qdrant.QueryPoints{
 		CollectionName: req.Collection,
 		Query:          qdrant.NewQuery(req.Vector...),
 		Limit:          &qryLimit,
-	})
+		WithPayload:    qdrant.NewWithPayload(true),
+	}
+
+	if req.Filter != nil {
+		filter, err := translateFilter(req.Filter)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to translate filter: %v", err)
+		}
+		query.Filter = filter
+	}
+
+	qryResp, err := c.qClient.Query(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to execute search query: %v", err)
 	}
 
-	// TODO: Add Payload field to SearchResult
 	results := make([]*pb.SearchResult, len(qryResp))
 	for i, point := range qryResp {
+		var pl *structpb.Struct
+
+		if len(point.Payload) > 0 {
+			mp := make(map[string]any)
+			for k, v := range point.Payload {
+				mp[k] = v.GetStringValue() // TODO: Currently supporting only string payload, need to look into supporting generic payload types
+			}
+
+			pl, err = structpb.NewStruct(mp)
+			if err != nil {
+				// TODO: Implement custom logger
+				fmt.Printf("WARNING: Failed to convert payload for ID %s: %v", point.Id, err)
+			}
+		}
+
 		results[i] = &pb.SearchResult{
-			Id:    point.Id.String(),
-			Score: point.Score,
+			Id:      point.Id.String(),
+			Score:   point.Score,
+			Payload: pl,
 		}
 	}
 
@@ -57,4 +85,22 @@ func (c *Client) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 
 func (c *Client) Close() error {
 	return c.qClient.Close()
+}
+
+// translateFilter maps generic JSON logic to Qdrant's boolean conditions
+func translateFilter(s *structpb.Struct) (*qdrant.Filter, error) {
+	var conditions []*qdrant.Condition
+
+	for key, value := range s.Fields {
+		cond := qdrant.NewMatch(key, value.AsInterface().(string))
+		conditions = append(conditions, cond)
+	}
+
+	if len(conditions) == 0 {
+		return nil, nil
+	}
+
+	return &qdrant.Filter{
+		Must: conditions,
+	}, nil
 }

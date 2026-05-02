@@ -1,12 +1,15 @@
 package main
 
 import (
+	"fmt"
 	"net"
 
 	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
 	"github.com/ihgazi/vectorproxy/internal/provider"
 	"github.com/ihgazi/vectorproxy/internal/server"
+
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 func main() {
@@ -16,5 +19,8 @@ func main() {
 	s := grpc.NewServer()
 	pb.RegisterProxyServiceServer(s, server.NewProxyServer(store))
 
+	reflection.Register(s)
+
+	fmt.Println("Server is running on port 50051!") // TODO: Implement logger
 	s.Serve(lis)
 }
