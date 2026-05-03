@@ -11,8 +11,13 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+type QdrantClient interface {
+	Query(ctx context.Context, query *qdrant.QueryPoints) ([]*qdrant.ScoredPoint, error)
+	Close() error
+}
+
 type Client struct {
-	qClient *qdrant.Client
+	qClient QdrantClient
 }
 
 func NewClient(host string, port int) (engine.VectorStore, error) {
