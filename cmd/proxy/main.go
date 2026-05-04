@@ -5,6 +5,7 @@ import (
 	"net"
 
 	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
+	"github.com/ihgazi/vectorproxy/internal/middleware"
 	"github.com/ihgazi/vectorproxy/internal/provider"
 	"github.com/ihgazi/vectorproxy/internal/server"
 
@@ -15,9 +16,14 @@ import (
 func main() {
 	store, _ := provider.NewVectorStore("qdrant", "localhost", 6334)
 
+	handler := middleware.Chain(
+		store.Search,
+		middleware.LoggingInterceptor,
+	)
+
 	lis, _ := net.Listen("tcp", ":50051")
 	s := grpc.NewServer()
-	pb.RegisterProxyServiceServer(s, server.NewProxyServer(store))
+	pb.RegisterProxyServiceServer(s, server.NewProxyServer(handler))
 
 	reflection.Register(s)
 

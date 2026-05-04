@@ -4,18 +4,18 @@ import (
 	"context"
 
 	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
-	"github.com/ihgazi/vectorproxy/internal/engine"
+	"github.com/ihgazi/vectorproxy/internal/middleware"
 )
 
 type ProxyServer struct {
 	pb.UnimplementedProxyServiceServer
-	store engine.VectorStore
+	handler middleware.SearchHandler
 }
 
-func NewProxyServer(store engine.VectorStore) *ProxyServer {
-	return &ProxyServer{store: store}
+func NewProxyServer(h middleware.SearchHandler) *ProxyServer {
+	return &ProxyServer{handler: h}
 }
 
 func (s *ProxyServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error) {
-	return s.store.Search(ctx, req)
+	return s.handler(ctx, req)
 }

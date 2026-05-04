@@ -6,50 +6,67 @@ import (
 	"testing"
 
 	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
+	"github.com/ihgazi/vectorproxy/internal/middleware"
 )
 
-type mockVectorStore struct {
-	searchFunc func(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error)
-	closeFunc  func() error
-}
-
-func (m *mockVectorStore) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error) {
-	return m.searchFunc(ctx, req)
-}
-func (m *mockVectorStore) Close() error {
-	return m.closeFunc()
-}
-
-func TestProxyServer_Search_Success(t *testing.T) {
-	mockVS := &mockVectorStore{
-		searchFunc: func(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error) {
-			return &pb.SearchResponse{Results: []*pb.SearchResult{{Id: "1"}}}, nil
-		},
-		closeFunc: func() error { return nil },
+// A simple mock handler for testing
+func mockHandler(resp *pb.SearchResponse, err error) middleware.SearchHandler {
+	return func(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error) {
+		return resp, err
 	}
-	s := &ProxyServer{store: mockVS}
+}
 
-	resp, err := s.Search(context.Background(), &pb.SearchRequest{})
+func TestProxyServer_Search_HandlerCalled(t *testing.T) {
+	expectedResp := &pb.SearchResponse{Results: []*pb.SearchResult{{Id: "1"}}}
+	handler := mockHandler(expectedResp, nil)
+	server := NewProxyServer(handler)
+
+	resp, err := server.Search(context.Background(), &pb.SearchRequest{})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if len(resp.Results) != 1 {
-		t.Errorf("expected 1 result, got %d", len(resp.Results))
+	if resp != expectedResp {
+		t.Errorf("expected response %v, got %v", expectedResp, resp)
 	}
 }
 
-func TestProxyServer_Search_Error(t *testing.T) {
-	mockVS := &mockVectorStore{
-		searchFunc: func(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error) {
-			return nil, errors.New("search error")
-		},
-		closeFunc: func() error { return nil },
+func TestProxyServer_Search_InterceptorCalled(t *testing.T) {
+	called := false
+	interceptor := func(next middleware.SearchHandler) middleware.SearchHandler {
+		return func(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error) {
+			called = true
+			return next(ctx, req)
+		}
 	}
-	s := &ProxyServer{store: mockVS}
+	expectedResp := &pb.SearchResponse{Results: []*pb.SearchResult{{Id: "2"}}}
+	handler := middleware.Chain(
+		mockHandler(expectedResp, nil),
+		interceptor,
+	)
+	server := NewProxyServer(handler)
 
-	_, err := s.Search(context.Background(), &pb.SearchRequest{})
+	resp, err := server.Search(context.Background(), &pb.SearchRequest{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !called {
+		t.Errorf("expected interceptor to be called")
+	}
+	if resp != expectedResp {
+		t.Errorf("expected response %v, got %v", expectedResp, resp)
+	}
+}
+
+func TestProxyServer_Search_HandlerError(t *testing.T) {
+	expectedErr := errors.New("handler error")
+	handler := mockHandler(nil, expectedErr)
+	server := NewProxyServer(handler)
+
+	_, err := server.Search(context.Background(), &pb.SearchRequest{})
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
+	if err != expectedErr {
+		t.Errorf("expected error %v, got %v", expectedErr, err)
+	}
 }
-
