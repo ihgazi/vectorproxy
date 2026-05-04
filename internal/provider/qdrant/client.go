@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
 	"github.com/ihgazi/vectorproxy/internal/engine"
+	"github.com/ihgazi/vectorproxy/internal/search"
 	"github.com/qdrant/go-client/qdrant"
-
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type QdrantClient interface {
@@ -26,17 +24,18 @@ func NewClient(host string, port int) (engine.VectorStore, error) {
 		Port: port,
 	})
 	if err != nil {
-		panic(fmt.Sprintf("Failed to create Qdrant client: %v", err))
+		return nil, fmt.Errorf("Failed to create Qdrant client: %v", err)
 	}
 	return &Client{qClient: client}, nil
 }
 
-func (c *Client) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error) {
-	if req.TopK == 0 {
-		req.TopK = 10 // Default to limit 10 if not specified
+func (c *Client) Search(ctx context.Context, req search.SearchQuery) (search.SearchResponse, error) {
+	topK := req.TopK
+	if topK == 0 {
+		topK = 10 // Default to limit 10 if not specified
 	}
 
-	qryLimit := uint64(req.TopK)
+	qryLimit := uint64(topK)
 
 	query := &qdrant.QueryPoints{
 		CollectionName: req.Collection,
@@ -48,41 +47,35 @@ func (c *Client) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchR
 	if req.Filter != nil {
 		filter, err := translateFilter(req.Filter)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to translate filter: %v", err)
+			return search.SearchResponse{}, fmt.Errorf("Failed to translate filter: %v", err)
 		}
 		query.Filter = filter
 	}
 
 	qryResp, err := c.qClient.Query(ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to execute search query: %v", err)
+		return search.SearchResponse{}, fmt.Errorf("Failed to execute search query: %v", err)
 	}
 
-	results := make([]*pb.SearchResult, len(qryResp))
+	results := make([]search.SearchResult, len(qryResp))
 	for i, point := range qryResp {
-		var pl *structpb.Struct
+		var mp map[string]any
 
 		if len(point.Payload) > 0 {
-			mp := make(map[string]any)
+			mp = make(map[string]any)
 			for k, v := range point.Payload {
 				mp[k] = v.GetStringValue() // TODO: Currently supporting only string payload, need to look into supporting generic payload types
 			}
-
-			pl, err = structpb.NewStruct(mp)
-			if err != nil {
-				// TODO: Implement custom logger
-				fmt.Printf("WARNING: Failed to convert payload for ID %s: %v", point.Id, err)
-			}
 		}
 
-		results[i] = &pb.SearchResult{
-			Id:      point.Id.String(),
+		results[i] = search.SearchResult{
+			ID:      point.Id.String(),
 			Score:   point.Score,
-			Payload: pl,
+			Payload: mp,
 		}
 	}
 
-	resp := &pb.SearchResponse{
+	resp := search.SearchResponse{
 		Results: results,
 	}
 	return resp, nil
@@ -93,11 +86,11 @@ func (c *Client) Close() error {
 }
 
 // translateFilter maps generic JSON logic to Qdrant's boolean conditions
-func translateFilter(s *structpb.Struct) (*qdrant.Filter, error) {
+func translateFilter(mp map[string]string) (*qdrant.Filter, error) {
 	var conditions []*qdrant.Condition
 
-	for key, value := range s.Fields {
-		cond := qdrant.NewMatch(key, value.AsInterface().(string))
+	for key, value := range mp {
+		cond := qdrant.NewMatch(key, value)
 		conditions = append(conditions, cond)
 	}
 

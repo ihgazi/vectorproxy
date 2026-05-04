@@ -5,11 +5,11 @@ import (
 	"log"
 	"time"
 
-	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
+	"github.com/ihgazi/vectorproxy/internal/search"
 )
 
 func LoggingInterceptor(next SearchHandler) SearchHandler {
-	return func(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error) {
+	return func(ctx context.Context, req search.SearchQuery) (search.SearchResponse, error) {
 		start := time.Now()
 
 		log.Printf("Incoming search request: Collection=%s, TopK=%d", req.Collection, req.TopK)

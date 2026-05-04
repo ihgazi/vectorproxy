@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"net"
 
 	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
@@ -27,6 +27,6 @@ func main() {
 
 	reflection.Register(s)
 
-	fmt.Println("Server is running on port 50051!") // TODO: Implement logger
+	log.Println("Server is running on port 50051!")
 	s.Serve(lis)
 }
