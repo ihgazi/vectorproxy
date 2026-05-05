@@ -55,7 +55,7 @@ func TestSearchMapping(t *testing.T) {
 		TopK:       5,
 	}
 
-	resp, err := client.Search(context.Background(), req)
+	resp, err := client.Search(context.Background(), &req)
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
 	}
@@ -76,4 +76,3 @@ func TestSearchMapping(t *testing.T) {
 		t.Errorf("Expected payload name 'test-item', got '%v'", res.Payload["name"])
 	}
 }
-

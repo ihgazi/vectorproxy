@@ -29,7 +29,7 @@ func NewClient(host string, port int) (engine.VectorStore, error) {
 	return &Client{qClient: client}, nil
 }
 
-func (c *Client) Search(ctx context.Context, req search.SearchQuery) (search.SearchResponse, error) {
+func (c *Client) Search(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
 	topK := req.TopK
 	if topK == 0 {
 		topK = 10 // Default to limit 10 if not specified
@@ -47,14 +47,14 @@ func (c *Client) Search(ctx context.Context, req search.SearchQuery) (search.Sea
 	if req.Filter != nil {
 		filter, err := translateFilter(req.Filter)
 		if err != nil {
-			return search.SearchResponse{}, fmt.Errorf("Failed to translate filter: %v", err)
+			return nil, fmt.Errorf("Failed to translate filter: %v", err)
 		}
 		query.Filter = filter
 	}
 
 	qryResp, err := c.qClient.Query(ctx, query)
 	if err != nil {
-		return search.SearchResponse{}, fmt.Errorf("Failed to execute search query: %v", err)
+		return nil, fmt.Errorf("Failed to execute search query: %v", err)
 	}
 
 	results := make([]search.SearchResult, len(qryResp))
@@ -78,7 +78,7 @@ func (c *Client) Search(ctx context.Context, req search.SearchQuery) (search.Sea
 	resp := search.SearchResponse{
 		Results: results,
 	}
-	return resp, nil
+	return &resp, nil
 }
 
 func (c *Client) Close() error {

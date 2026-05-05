@@ -11,15 +11,15 @@ import (
 )
 
 // A simple mock handler for testing
-func mockHandler(resp search.SearchResponse, err error) middleware.SearchHandler {
-	return func(ctx context.Context, req search.SearchQuery) (search.SearchResponse, error) {
+func mockHandler(resp *search.SearchResponse, err error) middleware.SearchHandler {
+	return func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
 		return resp, err
 	}
 }
 
 func TestProxyServer_Search_HandlerCalled(t *testing.T) {
 	expectedResp := search.SearchResponse{Results: []search.SearchResult{{ID: "1"}}}
-	handler := mockHandler(expectedResp, nil)
+	handler := mockHandler(&expectedResp, nil)
 	server := NewProxyServer(handler)
 
 	req := &pb.SearchRequest{Collection: "test"}
@@ -36,14 +36,14 @@ func TestProxyServer_Search_HandlerCalled(t *testing.T) {
 func TestProxyServer_Search_InterceptorCalled(t *testing.T) {
 	called := false
 	interceptor := func(next middleware.SearchHandler) middleware.SearchHandler {
-		return func(ctx context.Context, req search.SearchQuery) (search.SearchResponse, error) {
+		return func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
 			called = true
 			return next(ctx, req)
 		}
 	}
 	expectedResp := search.SearchResponse{Results: []search.SearchResult{{ID: "2"}}}
 	handler := middleware.Chain(
-		mockHandler(expectedResp, nil),
+		mockHandler(&expectedResp, nil),
 		interceptor,
 	)
 	server := NewProxyServer(handler)
@@ -64,7 +64,7 @@ func TestProxyServer_Search_InterceptorCalled(t *testing.T) {
 
 func TestProxyServer_Search_HandlerError(t *testing.T) {
 	expectedErr := errors.New("handler error")
-	handler := mockHandler(search.SearchResponse{}, expectedErr)
+	handler := mockHandler(nil, expectedErr)
 	server := NewProxyServer(handler)
 
 	req := &pb.SearchRequest{Collection: "test"}

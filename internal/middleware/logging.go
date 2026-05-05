@@ -9,7 +9,7 @@ import (
 )
 
 func LoggingInterceptor(next SearchHandler) SearchHandler {
-	return func(ctx context.Context, req search.SearchQuery) (search.SearchResponse, error) {
+	return func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
 		start := time.Now()
 
 		log.Printf("Incoming search request: Collection=%s, TopK=%d", req.Collection, req.TopK)
@@ -23,6 +23,6 @@ func LoggingInterceptor(next SearchHandler) SearchHandler {
 			log.Printf("Search request successful: %d results after %v", len(resp.Results), duration)
 		}
 
-		return resp, err
+		return nil, err
 	}
 }

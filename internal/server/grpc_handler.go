@@ -29,10 +29,10 @@ func (s *ProxyServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Se
 		return nil, err
 	}
 
-	return domainToProtoResponse(&resp), nil
+	return domainToProtoResponse(resp), nil
 }
 
-func protoToDomainQuery(pbreq *pb.SearchRequest) search.SearchQuery {
+func protoToDomainQuery(pbreq *pb.SearchRequest) *search.SearchQuery {
 	pbFilter := pbreq.Filter.AsMap()
 	if pbFilter == nil {
 		pbFilter = make(map[string]any)
@@ -48,7 +48,7 @@ func protoToDomainQuery(pbreq *pb.SearchRequest) search.SearchQuery {
 		searchFilter[k] = strVal
 	}
 
-	return search.SearchQuery{
+	return &search.SearchQuery{
 		Collection: pbreq.Collection,
 		Vector:     pbreq.Vector,
 		TopK:       pbreq.TopK,
