@@ -11,6 +11,7 @@ message SearchRequest {
   int32 top_k = 2;
   string collection = 3;
   google.protobuf.Struct filter = 4;
+  string query = 5;
 }
 
 message SearchResult {

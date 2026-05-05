@@ -53,6 +53,7 @@ func protoToDomainQuery(pbreq *pb.SearchRequest) *search.SearchQuery {
 		Vector:     pbreq.Vector,
 		TopK:       pbreq.TopK,
 		Filter:     searchFilter,
+		Query:      pbreq.Query,
 	}
 }
 

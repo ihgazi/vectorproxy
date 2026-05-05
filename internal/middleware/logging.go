@@ -23,6 +23,6 @@ func LoggingInterceptor(next SearchHandler) SearchHandler {
 			log.Printf("Search request successful: %d results after %v", len(resp.Results), duration)
 		}
 
-		return nil, err
+		return resp, err
 	}
 }
