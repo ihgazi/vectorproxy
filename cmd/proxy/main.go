@@ -6,6 +6,7 @@ import (
 
 	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
 	"github.com/ihgazi/vectorproxy/internal/cache"
+	"github.com/ihgazi/vectorproxy/internal/coalesce"
 	"github.com/ihgazi/vectorproxy/internal/embedding"
 	"github.com/ihgazi/vectorproxy/internal/middleware"
 	"github.com/ihgazi/vectorproxy/internal/provider"
@@ -27,8 +28,16 @@ func main() {
 		defer semCache.Close()
 	}
 
+	vectorCoalescer := middleware.NewCoalesceInterceptor(coalesce.NewVectorKeyGenerator())
+
+	// Assemble middleware pipeline in execution order:
+	// Logging -> Embedding -> Request Coalescing -> Cache -> DB Search
 	var interceptors []middleware.Interceptor
-	interceptors = append(interceptors, middleware.LoggingInterceptor, embedInterceptor)
+	interceptors = append(interceptors,
+		middleware.LoggingInterceptor,
+		embedInterceptor,
+		vectorCoalescer,
+	)
 	if cacheInterceptor != nil {
 		interceptors = append(interceptors, cacheInterceptor)
 	}
@@ -58,7 +67,7 @@ func initializeCache() cache.SemanticCache {
 	}
 	semCache, err := cache.NewSemanticCache(cacheCfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize semantic cache: %v", err)
+		log.Printf("Failed to initialize semantic cache: %v", err)
 
 		return nil
 	}
