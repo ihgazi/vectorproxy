@@ -28,7 +28,8 @@ func main() {
 		defer semCache.Close()
 	}
 
-	vectorCoalescer := middleware.NewCoalesceInterceptor(keygen.NewVectorKeyGenerator())
+	// TODO: Make MinK value configurable
+	vectorCoalescer := middleware.NewCoalesceInterceptor(keygen.NewVectorKeyGenerator(), 10)
 
 	// Assemble middleware pipeline in execution order:
 	// Logging -> Embedding -> Request Coalescing -> Cache -> DB Search

@@ -1,4 +1,4 @@
-package middleware
+package coalesce
 
 import (
 	"context"
@@ -8,34 +8,32 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ihgazi/vectorproxy/internal/keygen"
 	"github.com/ihgazi/vectorproxy/internal/search"
 )
 
-func TestCoalesceInterceptor_BypassWhenNoKey(t *testing.T) {
+func TestCapacityCoalescer_BypassWhenNoKey(t *testing.T) {
+	c := New(func(req *search.SearchQuery) string { return "" }, 5)
+
 	dbCalled := false
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	handler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
 		dbCalled = true
 		return &search.SearchResponse{}, nil
 	}
 
-	dummyGen := func(req *search.SearchQuery) string { return "" }
-	interceptor := NewCoalesceInterceptor(dummyGen, 5)
-	wrapped := interceptor(dbHandler)
-
-	req := &search.SearchQuery{Collection: "test", TopK: 3}
-	_, err := wrapped(context.Background(), req)
+	_, err := c.Do(context.Background(), &search.SearchQuery{TopK: 3}, handler)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("unexpected err: %v", err)
 	}
 	if !dbCalled {
-		t.Error("expected database handler to be called when key is empty")
+		t.Fatal("expected handler to be called")
 	}
 }
 
-func TestCoalesceInterceptor_CoalescesWhenFits(t *testing.T) {
+func TestCapacityCoalescer_CoalescesWhenFits(t *testing.T) {
+	c := New(func(req *search.SearchQuery) string { return "key1" }, 5)
+
 	var calls int32
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	handler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
 		atomic.AddInt32(&calls, 1)
 		time.Sleep(50 * time.Millisecond)
 		return &search.SearchResponse{
@@ -43,17 +41,12 @@ func TestCoalesceInterceptor_CoalescesWhenFits(t *testing.T) {
 		}, nil
 	}
 
-	stringGen := keygen.NewStringKeyGenerator()
-	interceptor := NewCoalesceInterceptor(stringGen, 5)
-	wrapped := interceptor(dbHandler)
-
 	var wg sync.WaitGroup
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			req := &search.SearchQuery{Collection: "test-col", Query: "prompt", TopK: 3}
-			res, err := wrapped(context.Background(), req)
+			res, err := c.Do(context.Background(), &search.SearchQuery{TopK: 3}, handler)
 			if err != nil {
 				t.Errorf("unexpected err: %v", err)
 			}
@@ -69,11 +62,13 @@ func TestCoalesceInterceptor_CoalescesWhenFits(t *testing.T) {
 	}
 }
 
-func TestCoalesceInterceptor_BypassWhenExceedsCapacity(t *testing.T) {
+func TestCapacityCoalescer_BypassWhenExceedsCapacity(t *testing.T) {
+	c := New(func(req *search.SearchQuery) string { return "key1" }, 5)
+
 	var calls int32
 	waitCh := make(chan struct{})
 
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	handler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
 		atomic.AddInt32(&calls, 1)
 		if req.TopK == 5 {
 			<-waitCh // Block the first request so the second one arrives while it's in-flight
@@ -83,15 +78,11 @@ func TestCoalesceInterceptor_BypassWhenExceedsCapacity(t *testing.T) {
 		}, nil
 	}
 
-	stringGen := keygen.NewStringKeyGenerator()
-	interceptor := NewCoalesceInterceptor(stringGen, 5)
-	wrapped := interceptor(dbHandler)
-
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		wrapped(context.Background(), &search.SearchQuery{Collection: "col", Query: "q", TopK: 5})
+		c.Do(context.Background(), &search.SearchQuery{TopK: 5}, handler)
 	}()
 
 	time.Sleep(10 * time.Millisecond) // Ensure the first request is in-flight
@@ -99,7 +90,7 @@ func TestCoalesceInterceptor_BypassWhenExceedsCapacity(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		res, err := wrapped(context.Background(), &search.SearchQuery{Collection: "col", Query: "q", TopK: 10})
+		res, err := c.Do(context.Background(), &search.SearchQuery{TopK: 10}, handler)
 		if err != nil {
 			t.Errorf("unexpected err: %v", err)
 		}
@@ -116,21 +107,18 @@ func TestCoalesceInterceptor_BypassWhenExceedsCapacity(t *testing.T) {
 	}
 }
 
-func TestCoalesceInterceptor_MinKUpgradesDispatch(t *testing.T) {
+func TestCapacityCoalescer_MinKUpgradesDispatch(t *testing.T) {
+	c := New(func(req *search.SearchQuery) string { return "key1" }, 10)
+
 	var dispatchedK int32
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	handler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
 		dispatchedK = req.TopK
 		return &search.SearchResponse{
 			Results: make([]search.SearchResult, req.TopK),
 		}, nil
 	}
 
-	stringGen := keygen.NewStringKeyGenerator()
-	interceptor := NewCoalesceInterceptor(stringGen, 10)
-	wrapped := interceptor(dbHandler)
-
-	req := &search.SearchQuery{Collection: "col", Query: "q", TopK: 3}
-	res, err := wrapped(context.Background(), req)
+	res, err := c.Do(context.Background(), &search.SearchQuery{TopK: 3}, handler)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -142,19 +130,17 @@ func TestCoalesceInterceptor_MinKUpgradesDispatch(t *testing.T) {
 	}
 }
 
-func TestCoalesceInterceptor_TrimIsShallowCopy(t *testing.T) {
+func TestCapacityCoalescer_TrimIsShallowCopy(t *testing.T) {
+	c := New(func(req *search.SearchQuery) string { return "key1" }, 5)
+
 	originalResp := &search.SearchResponse{
 		Results: []search.SearchResult{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"}},
 	}
 
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	handler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
 		time.Sleep(50 * time.Millisecond)
 		return originalResp, nil
 	}
-
-	stringGen := keygen.NewStringKeyGenerator()
-	interceptor := NewCoalesceInterceptor(stringGen, 5)
-	wrapped := interceptor(dbHandler)
 
 	var wg sync.WaitGroup
 	var r1, r2 *search.SearchResponse
@@ -162,11 +148,11 @@ func TestCoalesceInterceptor_TrimIsShallowCopy(t *testing.T) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		r1, _ = wrapped(context.Background(), &search.SearchQuery{Collection: "c", Query: "q", TopK: 2})
+		r1, _ = c.Do(context.Background(), &search.SearchQuery{TopK: 2}, handler)
 	}()
 	go func() {
 		defer wg.Done()
-		r2, _ = wrapped(context.Background(), &search.SearchQuery{Collection: "c", Query: "q", TopK: 3})
+		r2, _ = c.Do(context.Background(), &search.SearchQuery{TopK: 3}, handler)
 	}()
 
 	wg.Wait()
@@ -181,6 +167,7 @@ func TestCoalesceInterceptor_TrimIsShallowCopy(t *testing.T) {
 		t.Errorf("expected 3 results, got %d", len(r2.Results))
 	}
 
+	// Modifying one shouldn't affect the other or the original
 	if r1 != nil && len(r1.Results) > 0 {
 		r1.Results[0].ID = "mutated"
 	}
@@ -192,23 +179,21 @@ func TestCoalesceInterceptor_TrimIsShallowCopy(t *testing.T) {
 	}
 }
 
-func TestCoalesceInterceptor_ErrorPropagation(t *testing.T) {
+func TestCapacityCoalescer_ErrorPropagation(t *testing.T) {
+	c := New(func(req *search.SearchQuery) string { return "key1" }, 5)
+
 	expectedErr := errors.New("handler error")
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	handler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
 		time.Sleep(50 * time.Millisecond)
 		return nil, expectedErr
 	}
-
-	stringGen := keygen.NewStringKeyGenerator()
-	interceptor := NewCoalesceInterceptor(stringGen, 5)
-	wrapped := interceptor(dbHandler)
 
 	var wg sync.WaitGroup
 	for i := 0; i < 3; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := wrapped(context.Background(), &search.SearchQuery{Collection: "c", Query: "q", TopK: 3})
+			_, err := c.Do(context.Background(), &search.SearchQuery{TopK: 3}, handler)
 			if err != expectedErr {
 				t.Errorf("expected err %v, got %v", expectedErr, err)
 			}
