@@ -1,4 +1,4 @@
-package coalesce
+package keygen
 
 import (
 	"testing"
@@ -11,9 +11,9 @@ func TestHashVector(t *testing.T) {
 	v2 := []float32{0.1, -0.2, 0.3}
 	v3 := []float32{0.1, 0.2, 0.3}
 
-	h1 := hashVector(v1)
-	h2 := hashVector(v2)
-	h3 := hashVector(v3)
+	h1 := HashVector(v1)
+	h2 := HashVector(v2)
+	h3 := HashVector(v3)
 
 	if h1 != h2 {
 		t.Errorf("hashVector should be deterministic; expected equal hashes for identical vectors, got %q and %q", h1, h2)
@@ -52,7 +52,7 @@ func TestVectorKeyGenerator(t *testing.T) {
 
 	// 2. Should return key formatted with vector hash
 	req := &search.SearchQuery{Collection: "images", Vector: []float32{0.5, 0.6}}
-	hash := hashVector(req.Vector)
+	hash := HashVector(req.Vector)
 	expected := "vec:images:" + hash
 	if k := gen(req); k != expected {
 		t.Errorf("expected key %q, got %q", expected, k)

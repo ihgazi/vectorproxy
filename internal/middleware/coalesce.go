@@ -4,13 +4,13 @@ import (
 	"context"
 	"log"
 
-	"github.com/ihgazi/vectorproxy/internal/coalesce"
+	"github.com/ihgazi/vectorproxy/internal/keygen"
 	"github.com/ihgazi/vectorproxy/internal/search"
 	"golang.org/x/sync/singleflight"
 )
 
 // NewCoalesceInterceptor wraps a search handler with Request Coalescing.
-func NewCoalesceInterceptor(generator coalesce.KeyGenerator) Interceptor {
+func NewCoalesceInterceptor(generator keygen.KeyGenerator) Interceptor {
 	var group singleflight.Group
 
 	return func(next SearchHandler) SearchHandler {

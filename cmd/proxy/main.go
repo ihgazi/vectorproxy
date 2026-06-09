@@ -6,8 +6,8 @@ import (
 
 	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
 	"github.com/ihgazi/vectorproxy/internal/cache"
-	"github.com/ihgazi/vectorproxy/internal/coalesce"
 	"github.com/ihgazi/vectorproxy/internal/embedding"
+	"github.com/ihgazi/vectorproxy/internal/keygen"
 	"github.com/ihgazi/vectorproxy/internal/middleware"
 	"github.com/ihgazi/vectorproxy/internal/provider"
 	"github.com/ihgazi/vectorproxy/internal/server"
@@ -28,7 +28,7 @@ func main() {
 		defer semCache.Close()
 	}
 
-	vectorCoalescer := middleware.NewCoalesceInterceptor(coalesce.NewVectorKeyGenerator())
+	vectorCoalescer := middleware.NewCoalesceInterceptor(keygen.NewVectorKeyGenerator())
 
 	// Assemble middleware pipeline in execution order:
 	// Logging -> Embedding -> Request Coalescing -> Cache -> DB Search

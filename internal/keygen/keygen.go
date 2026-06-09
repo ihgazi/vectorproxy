@@ -1,4 +1,4 @@
-package coalesce
+package keygen
 
 import (
 	"encoding/binary"
@@ -31,12 +31,12 @@ func NewVectorKeyGenerator() KeyGenerator {
 			return ""
 		}
 
-		return fmt.Sprintf("vec:%s:%s", req.Collection, hashVector(req.Vector))
+		return fmt.Sprintf("vec:%s:%s", req.Collection, HashVector(req.Vector))
 	}
 }
 
-// hashVector hashes the vector slice using FNV-1a
-func hashVector(vec []float32) string {
+// HashVector hashes the vector slice using FNV-1a
+func HashVector(vec []float32) string {
 	h := fnv.New64a()
 	buf := make([]byte, 4)
 	for _, f := range vec {

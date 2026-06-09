@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ihgazi/vectorproxy/internal/coalesce"
+	"github.com/ihgazi/vectorproxy/internal/keygen"
 	"github.com/ihgazi/vectorproxy/internal/search"
 )
 
@@ -45,7 +45,7 @@ func TestCoalesceInterceptor_InFlightMerging(t *testing.T) {
 	}
 
 	// Create interceptor with string key generator
-	stringGen := coalesce.NewStringKeyGenerator()
+	stringGen := keygen.NewStringKeyGenerator()
 	interceptor := NewCoalesceInterceptor(stringGen)
 	wrapped := interceptor(dbHandler)
 
@@ -88,7 +88,7 @@ func TestCoalesceInterceptor_ErrorPropagation(t *testing.T) {
 		return nil, expectedErr
 	}
 
-	stringGen := coalesce.NewStringKeyGenerator()
+	stringGen := keygen.NewStringKeyGenerator()
 	interceptor := NewCoalesceInterceptor(stringGen)
 	wrapped := interceptor(dbHandler)
 

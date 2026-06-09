@@ -10,7 +10,7 @@ import (
 type SemanticCache interface {
 	// Get checks the cache for a semantically similar query vector.
 	// Returns the cached response and true if a hit is found, or nil and false if it is a miss.
-	Get(ctx context.Context, collection string, vector []float32) (*search.SearchResponse, bool, error)
+	Get(ctx context.Context, collection string, vector []float32, topK int32) (*search.SearchResponse, bool, error)
 
 	// Set stores the query vector and associated search response in the cache.
 	Set(ctx context.Context, collection string, vector []float32, resp *search.SearchResponse) error

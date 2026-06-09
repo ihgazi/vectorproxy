@@ -18,7 +18,7 @@ func NewCacheInterceptor(c cache.SemanticCache) Interceptor {
 				return next(ctx, req)
 			}
 
-			cachedResp, hit, err := c.Get(ctx, req.Collection, req.Vector)
+			cachedResp, hit, err := c.Get(ctx, req.Collection, req.Vector, req.TopK)
 			if err != nil {
 				// Fail open on cache failures to guarantee service availability
 				log.Printf("Semantic cache lookup failed: %v. Bypassing to DB.", err)

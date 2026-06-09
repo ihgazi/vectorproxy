@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ihgazi/vectorproxy/internal/keygen"
 	"github.com/ihgazi/vectorproxy/internal/search"
 	"github.com/redis/go-redis/v9"
 )
@@ -54,7 +55,7 @@ func NewRedisCache(cfg Config) (SemanticCache, error) {
 }
 
 // Get queries Redis vector similarity space for a match.
-func (r *RedisCache) Get(ctx context.Context, collection string, vector []float32) (*search.SearchResponse, bool, error) {
+func (r *RedisCache) Get(ctx context.Context, collection string, vector []float32, topK int32) (*search.SearchResponse, bool, error) {
 	indexName := getIndexName(collection)
 
 	// Check if index is loaded in cache tracking map
@@ -88,7 +89,7 @@ func (r *RedisCache) Get(ctx context.Context, collection string, vector []float3
 		return nil, false, fmt.Errorf("Redis FT.Search query failed: %v", err)
 	}
 
-	return parseSearchResults(res, r.threshold)
+	return parseSearchResults(res, r.threshold, topK)
 }
 
 // Set saves the search query vector and associated results into Redis.
@@ -103,7 +104,7 @@ func (r *RedisCache) Set(ctx context.Context, collection string, vector []float3
 	}
 
 	// Generate key
-	docID := fmt.Sprintf("%d", time.Now().UnixNano())
+	docID := keygen.HashVector(vector)
 	key := fmt.Sprintf("%s%s", getPrefix(collection), docID)
 
 	// Serialize query vector
@@ -197,7 +198,7 @@ func float32SliceToBytes(vec []float32) ([]byte, error) {
 }
 
 // Parses FT.Search raw response interface
-func parseSearchResults(res any, threshold float32) (*search.SearchResponse, bool, error) {
+func parseSearchResults(res any, threshold float32, topK int32) (*search.SearchResponse, bool, error) {
 	arr, ok := res.([]any)
 	if !ok || len(arr) < 3 {
 		return nil, false, nil
@@ -258,6 +259,12 @@ func parseSearchResults(res any, threshold float32) (*search.SearchResponse, boo
 		return nil, false, fmt.Errorf("failed to deserialize cached response: %v", err)
 	}
 
-	// Cache Hit
-	return &searchResp, true, nil
+	// Verify whether the deserialized response contains at least topK results
+	// If it contains sufficient results, we trim it and return the response
+	if len(searchResp.Results) >= int(topK) {
+		searchResp.Results = searchResp.Results[:topK]
+		return &searchResp, true, nil
+	}
+
+	return nil, false, nil
 }
