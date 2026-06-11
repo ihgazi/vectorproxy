@@ -1,6 +1,7 @@
 package search
 
 import "context"
+
 // SearchQuery respresents a search request within a specific database collection.
 // The user can provide either a raw query text or the corresponding vector embedding.
 // The embedding will be generated internally, if not provided.
@@ -23,7 +24,8 @@ type SearchResult struct {
 
 // SearchResponse encapsulates the results of a search query (top K matches).
 type SearchResponse struct {
-	Results []SearchResult
+	Results  []SearchResult
+	MaxLimit bool // MaxLimit indicates if the search results covers the maximum matches from the vector store
 }
 
 // VectorStore defines the interface for a vector database.

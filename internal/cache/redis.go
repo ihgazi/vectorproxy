@@ -260,9 +260,11 @@ func parseSearchResults(res any, threshold float32, topK int32) (*search.SearchR
 	}
 
 	// Verify whether the deserialized response contains at least topK results
-	// If it contains sufficient results, we trim it and return the response
-	if len(searchResp.Results) >= int(topK) {
-		searchResp.Results = searchResp.Results[:topK]
+	// If it contains sufficient results (or we know the DB is exhausted), trim it and return
+	if len(searchResp.Results) >= int(topK) || searchResp.MaxLimit {
+		if len(searchResp.Results) > int(topK) {
+			searchResp.Results = searchResp.Results[:topK]
+		}
 		return &searchResp, true, nil
 	}
 

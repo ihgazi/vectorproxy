@@ -63,7 +63,8 @@ func (c *Client) Search(ctx context.Context, req *search.SearchQuery) (*search.S
 	}
 
 	resp := search.SearchResponse{
-		Results: results,
+		Results:  results,
+		MaxLimit: len(results) < int(topK),
 	}
 	return &resp, nil
 }
@@ -117,7 +118,8 @@ func (c *Client) SearchBatch(ctx context.Context, reqs []*search.SearchQuery) ([
 			results[j] = buildResult(point)
 		}
 		responses[i] = &search.SearchResponse{
-			Results: results,
+			Results:  results,
+			MaxLimit: len(results) < int(reqs[i].TopK),
 		}
 	}
 
