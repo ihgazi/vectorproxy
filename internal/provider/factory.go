@@ -3,11 +3,11 @@ package provider
 import (
 	"fmt"
 
-	"github.com/ihgazi/vectorproxy/internal/engine"
 	"github.com/ihgazi/vectorproxy/internal/provider/qdrant"
+	"github.com/ihgazi/vectorproxy/internal/search"
 )
 
-func NewVectorStore(provider string, host string, port int) (engine.VectorStore, error) {
+func NewVectorStore(provider string, host string, port int) (search.VectorStore, error) {
 	switch provider {
 	case "qdrant":
 		return qdrant.NewClient(host, port)

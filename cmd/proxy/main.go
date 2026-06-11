@@ -5,12 +5,14 @@ import (
 	"net"
 
 	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
+	"github.com/ihgazi/vectorproxy/internal/batch"
 	"github.com/ihgazi/vectorproxy/internal/cache"
 	"github.com/ihgazi/vectorproxy/internal/embedding"
 	"github.com/ihgazi/vectorproxy/internal/keygen"
 	"github.com/ihgazi/vectorproxy/internal/middleware"
 	"github.com/ihgazi/vectorproxy/internal/provider"
 	"github.com/ihgazi/vectorproxy/internal/server"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -43,8 +45,12 @@ func main() {
 		interceptors = append(interceptors, cacheInterceptor)
 	}
 
+	batchSize := 10 // TODO: Make this configurable
+	batcher := batch.New(store.SearchBatch, batchSize, 100*time.Millisecond)
+	go batcher.FlushLoop()
+
 	handler := middleware.Chain(
-		store.Search,
+		batcher.Search,
 		interceptors...,
 	)
 

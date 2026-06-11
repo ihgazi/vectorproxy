@@ -1,3 +1,5 @@
 /qdrant_storage
 /gen
 /cmd/seed
+Makefile
+*.sh

@@ -17,6 +17,9 @@ type MockQdrantClient struct {
 func (m *MockQdrantClient) Query(ctx context.Context, req *qdrant.QueryPoints) ([]*qdrant.ScoredPoint, error) {
 	return m.QueryResult, m.QueryErr
 }
+func (m *MockQdrantClient) QueryBatch(ctx context.Context, req *qdrant.QueryBatchPoints) ([]*qdrant.BatchResult, error) {
+	return nil, nil // Dummy implementation for now
+}
 func (m *MockQdrantClient) Close() error { return nil }
 
 func TestTranslateFilter(t *testing.T) {

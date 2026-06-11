@@ -1,5 +1,6 @@
 package search
 
+import "context"
 // SearchQuery respresents a search request within a specific database collection.
 // The user can provide either a raw query text or the corresponding vector embedding.
 // The embedding will be generated internally, if not provided.
@@ -23,4 +24,12 @@ type SearchResult struct {
 // SearchResponse encapsulates the results of a search query (top K matches).
 type SearchResponse struct {
 	Results []SearchResult
+}
+
+// VectorStore defines the interface for a vector database.
+// TODO: Implement vector Insert and Delete operations
+type VectorStore interface {
+	Search(ctx context.Context, req *SearchQuery) (*SearchResponse, error)
+	SearchBatch(ctx context.Context, reqs []*SearchQuery) ([]*SearchResponse, error)
+	Close() error
 }
