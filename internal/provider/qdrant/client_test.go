@@ -20,6 +20,9 @@ func (m *MockQdrantClient) Query(ctx context.Context, req *qdrant.QueryPoints) (
 func (m *MockQdrantClient) QueryBatch(ctx context.Context, req *qdrant.QueryBatchPoints) ([]*qdrant.BatchResult, error) {
 	return nil, nil // Dummy implementation for now
 }
+func (m *MockQdrantClient) ListCollections(ctx context.Context) ([]string, error) {
+	return []string{"test-collection"}, nil
+}
 func (m *MockQdrantClient) Close() error { return nil }
 
 func TestTranslateFilter(t *testing.T) {
@@ -77,5 +80,19 @@ func TestSearchMapping(t *testing.T) {
 	payloadName, ok := res.Payload["name"].(string)
 	if !ok || payloadName != "test-item" {
 		t.Errorf("Expected payload name 'test-item', got '%v'", res.Payload["name"])
+	}
+}
+
+func TestClient_ListCollections(t *testing.T) {
+	mockClient := &MockQdrantClient{}
+	client := &Client{qClient: mockClient}
+
+	collections, err := client.ListCollections(context.Background())
+	if err != nil {
+		t.Fatalf("ListCollections failed: %v", err)
+	}
+
+	if len(collections) != 1 || collections[0] != "test-collection" {
+		t.Errorf("Expected ['test-collection'], got %v", collections)
 	}
 }

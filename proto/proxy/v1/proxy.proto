@@ -24,6 +24,13 @@ message SearchResponse {
   repeated SearchResult results = 1;
 }
 
+message ListCollectionsRequest {}
+
+message ListCollectionsResponse {
+  repeated string collections = 1;
+}
+
 service ProxyService {
   rpc Search(SearchRequest) returns (SearchResponse);
+  rpc ListCollections(ListCollectionsRequest) returns (ListCollectionsResponse);
 }

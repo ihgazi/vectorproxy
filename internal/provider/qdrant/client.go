@@ -11,6 +11,7 @@ import (
 type QdrantClient interface {
 	Query(ctx context.Context, query *qdrant.QueryPoints) ([]*qdrant.ScoredPoint, error)
 	QueryBatch(ctx context.Context, query *qdrant.QueryBatchPoints) ([]*qdrant.BatchResult, error)
+	ListCollections(ctx context.Context) ([]string, error)
 	Close() error
 }
 
@@ -18,6 +19,7 @@ type Client struct {
 	qClient QdrantClient
 }
 
+// NewClient initializes a new Qdrant client with the provided host and port.
 func NewClient(host string, port int) (search.VectorStore, error) {
 	client, err := qdrant.NewClient(&qdrant.Config{
 		Host: host,
@@ -29,6 +31,7 @@ func NewClient(host string, port int) (search.VectorStore, error) {
 	return &Client{qClient: client}, nil
 }
 
+// Search executes a search query against the Qdrant vector store and returns the results.
 func (c *Client) Search(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
 	topK := req.TopK
 	if topK == 0 {
@@ -69,6 +72,7 @@ func (c *Client) Search(ctx context.Context, req *search.SearchQuery) (*search.S
 	return &resp, nil
 }
 
+// SearchBatch consolidates multiple search queries into a single batch request to Qdrant.
 func (c *Client) SearchBatch(ctx context.Context, reqs []*search.SearchQuery) ([]*search.SearchResponse, error) {
 	if len(reqs) == 0 {
 		return nil, nil
@@ -124,6 +128,16 @@ func (c *Client) SearchBatch(ctx context.Context, reqs []*search.SearchQuery) ([
 	}
 
 	return responses, nil
+}
+
+// ListCollections retrieves the list of collection names from the Qdrant vector store.
+func (c *Client) ListCollections(ctx context.Context) ([]string, error) {
+	collections, err := c.qClient.ListCollections(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to list collections: %v", err)
+	}
+
+	return collections, nil
 }
 
 func (c *Client) Close() error {

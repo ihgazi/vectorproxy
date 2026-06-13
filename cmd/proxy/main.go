@@ -56,7 +56,7 @@ func main() {
 
 	lis, _ := net.Listen("tcp", ":50051")
 	s := grpc.NewServer()
-	pb.RegisterProxyServiceServer(s, server.NewProxyServer(handler))
+	pb.RegisterProxyServiceServer(s, server.NewProxyServer(handler, store))
 
 	reflection.Register(s)
 

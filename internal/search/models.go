@@ -33,5 +33,6 @@ type SearchResponse struct {
 type VectorStore interface {
 	Search(ctx context.Context, req *SearchQuery) (*SearchResponse, error)
 	SearchBatch(ctx context.Context, reqs []*SearchQuery) ([]*SearchResponse, error)
+	ListCollections(ctx context.Context) ([]string, error)
 	Close() error
 }

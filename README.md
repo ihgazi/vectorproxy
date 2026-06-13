@@ -24,9 +24,8 @@ Below is the implementation status of the core proxy features:
 - [x] **Qdrant Vector Store Integration**: Implements the backend [VectorStore](file:///home/ihgazi/Projects/VectorProxy/internal/engine/interface.go) interface to translate filters and query vectors for Qdrant.
 - [x] **Latency & Performance Logging**: Basic diagnostic tracking built directly into the interceptor pipeline.
 - [x] **Probabilistic Semantic Caching**: Using vector similarity checks against low-latency stores (e.g., Redis-VL) to bypass backend databases for semantically duplicate queries.
-- [ ] **Request Coalescing (Collapsing)**: Merges identical concurrent search requests in-flight to prevent the thundering herd problem.
-- [ ] **Vectorized Micro-Batching**: Accumulates incoming individual searches over a short window (e.g., 10–50ms) to dispatch them as a single multi-vector batch query.
-- [ ] **Intent-Driven Semantic Routing**: Automatically classifies query context (e.g., Legal vs. Technical) and routes the request to specialized embedding/collection pairs.
+- [x] **Request Coalescing (Collapsing)**: Merges identical concurrent search requests in-flight to prevent the thundering herd problem.
+- [x] **Vectorized Micro-Batching**: Accumulates incoming individual searches over a short window (e.g., 10–50ms) to dispatch them as a single multi-vector batch query.
 - [ ] **Write/Update Support (CRUD)**: Adding Upsert, Delete, and Collection management endpoints to make the proxy fully transparent.
 
 ---

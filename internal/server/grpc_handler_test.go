@@ -17,10 +17,28 @@ func mockHandler(resp *search.SearchResponse, err error) middleware.SearchHandle
 	}
 }
 
+// MockVectorStore for testing
+type MockVectorStore struct {
+	Collections []string
+	Err         error
+}
+
+func (m *MockVectorStore) Search(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	return nil, nil
+}
+func (m *MockVectorStore) SearchBatch(ctx context.Context, reqs []*search.SearchQuery) ([]*search.SearchResponse, error) {
+	return nil, nil
+}
+func (m *MockVectorStore) ListCollections(ctx context.Context) ([]string, error) {
+	return m.Collections, m.Err
+}
+func (m *MockVectorStore) Close() error { return nil }
+
 func TestProxyServer_Search_HandlerCalled(t *testing.T) {
 	expectedResp := search.SearchResponse{Results: []search.SearchResult{{ID: "1"}}}
 	handler := mockHandler(&expectedResp, nil)
-	server := NewProxyServer(handler)
+	store := &MockVectorStore{}
+	server := NewProxyServer(handler, store)
 
 	req := &pb.SearchRequest{Collection: "test"}
 	resp, err := server.Search(context.Background(), req)
@@ -46,7 +64,8 @@ func TestProxyServer_Search_InterceptorCalled(t *testing.T) {
 		mockHandler(&expectedResp, nil),
 		interceptor,
 	)
-	server := NewProxyServer(handler)
+	store := &MockVectorStore{}
+	server := NewProxyServer(handler, store)
 
 	req := &pb.SearchRequest{Collection: "test"}
 	resp, err := server.Search(context.Background(), req)
@@ -65,7 +84,8 @@ func TestProxyServer_Search_InterceptorCalled(t *testing.T) {
 func TestProxyServer_Search_HandlerError(t *testing.T) {
 	expectedErr := errors.New("handler error")
 	handler := mockHandler(nil, expectedErr)
-	server := NewProxyServer(handler)
+	store := &MockVectorStore{}
+	server := NewProxyServer(handler, store)
 
 	req := &pb.SearchRequest{Collection: "test"}
 	_, err := server.Search(context.Background(), req)
@@ -74,5 +94,23 @@ func TestProxyServer_Search_HandlerError(t *testing.T) {
 	}
 	if err != expectedErr {
 		t.Errorf("expected error %v, got %v", expectedErr, err)
+	}
+}
+
+func TestProxyServer_ListCollections(t *testing.T) {
+	expectedCollections := []string{"collection1", "collection2"}
+	store := &MockVectorStore{Collections: expectedCollections}
+	server := NewProxyServer(mockHandler(nil, nil), store)
+
+	req := &pb.ListCollectionsRequest{}
+	resp, err := server.ListCollections(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(resp.Collections) != 2 {
+		t.Fatalf("expected 2 collections, got %d", len(resp.Collections))
+	}
+	if resp.Collections[0] != "collection1" || resp.Collections[1] != "collection2" {
+		t.Errorf("expected %v, got %v", expectedCollections, resp.Collections)
 	}
 }

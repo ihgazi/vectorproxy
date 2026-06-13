@@ -13,11 +13,12 @@ import (
 
 type ProxyServer struct {
 	pb.UnimplementedProxyServiceServer
-	handler middleware.SearchHandler
+	handler     middleware.SearchHandler
+	vectorStore search.VectorStore
 }
 
-func NewProxyServer(h middleware.SearchHandler) *ProxyServer {
-	return &ProxyServer{handler: h}
+func NewProxyServer(h middleware.SearchHandler, store search.VectorStore) *ProxyServer {
+	return &ProxyServer{handler: h, vectorStore: store}
 }
 
 func (s *ProxyServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error) {
@@ -30,6 +31,15 @@ func (s *ProxyServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Se
 	}
 
 	return domainToProtoResponse(resp), nil
+}
+
+func (s *ProxyServer) ListCollections(ctx context.Context, req *pb.ListCollectionsRequest) (*pb.ListCollectionsResponse, error) {
+	collections, err := s.vectorStore.ListCollections(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.ListCollectionsResponse{Collections: collections}, nil
 }
 
 func protoToDomainQuery(pbreq *pb.SearchRequest) *search.SearchQuery {
