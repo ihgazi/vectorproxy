@@ -5,13 +5,13 @@ import (
 	"log"
 
 	"github.com/ihgazi/vectorproxy/internal/cache"
-	"github.com/ihgazi/vectorproxy/internal/search"
+	"github.com/ihgazi/vectorproxy/internal/store"
 )
 
 // NewCacheInterceptor creates a SearchHandler middleware that hooks up the SemanticCache plugin.
 func NewCacheInterceptor(c cache.SemanticCache) Interceptor {
 	return func(next SearchHandler) SearchHandler {
-		return func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+		return func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 			// A query vector is required to perform semantic cache lookups.
 			// If no vector is present, bypass the cache and fall back.
 			if len(req.Vector) == 0 {

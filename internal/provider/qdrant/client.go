@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ihgazi/vectorproxy/internal/search"
+	"github.com/ihgazi/vectorproxy/internal/store"
 	"github.com/qdrant/go-client/qdrant"
 )
 
@@ -20,7 +20,7 @@ type Client struct {
 }
 
 // NewClient initializes a new Qdrant client with the provided host and port.
-func NewClient(host string, port int) (search.VectorStore, error) {
+func NewClient(host string, port int) (store.VectorStore, error) {
 	client, err := qdrant.NewClient(&qdrant.Config{
 		Host: host,
 		Port: port,
@@ -32,7 +32,7 @@ func NewClient(host string, port int) (search.VectorStore, error) {
 }
 
 // Search executes a search query against the Qdrant vector store and returns the results.
-func (c *Client) Search(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+func (c *Client) Search(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 	topK := req.TopK
 	if topK == 0 {
 		topK = 10 // Default to limit 10 if not specified
@@ -60,12 +60,12 @@ func (c *Client) Search(ctx context.Context, req *search.SearchQuery) (*search.S
 		return nil, fmt.Errorf("Failed to execute search query: %v", err)
 	}
 
-	results := make([]search.SearchResult, len(qryResp))
+	results := make([]store.SearchResult, len(qryResp))
 	for i, point := range qryResp {
 		results[i] = buildResult(point)
 	}
 
-	resp := search.SearchResponse{
+	resp := store.SearchResponse{
 		Results:  results,
 		MaxLimit: len(results) < int(topK),
 	}
@@ -73,7 +73,7 @@ func (c *Client) Search(ctx context.Context, req *search.SearchQuery) (*search.S
 }
 
 // SearchBatch consolidates multiple search queries into a single batch request to Qdrant.
-func (c *Client) SearchBatch(ctx context.Context, reqs []*search.SearchQuery) ([]*search.SearchResponse, error) {
+func (c *Client) SearchBatch(ctx context.Context, reqs []*store.SearchQuery) ([]*store.SearchResponse, error) {
 	if len(reqs) == 0 {
 		return nil, nil
 	}
@@ -114,14 +114,14 @@ func (c *Client) SearchBatch(ctx context.Context, reqs []*search.SearchQuery) ([
 		return nil, fmt.Errorf("Failed to execute batch search: %v", err)
 	}
 
-	responses := make([]*search.SearchResponse, len(batchResp))
+	responses := make([]*store.SearchResponse, len(batchResp))
 
 	for i, qryResp := range batchResp {
-		results := make([]search.SearchResult, len(qryResp.Result))
+		results := make([]store.SearchResult, len(qryResp.Result))
 		for j, point := range qryResp.Result {
 			results[j] = buildResult(point)
 		}
-		responses[i] = &search.SearchResponse{
+		responses[i] = &store.SearchResponse{
 			Results:  results,
 			MaxLimit: len(results) < int(reqs[i].TopK),
 		}
@@ -144,7 +144,7 @@ func (c *Client) Close() error {
 	return c.qClient.Close()
 }
 
-func buildResult(point *qdrant.ScoredPoint) search.SearchResult {
+func buildResult(point *qdrant.ScoredPoint) store.SearchResult {
 	var mp map[string]any
 
 	if len(point.Payload) > 0 {
@@ -154,7 +154,7 @@ func buildResult(point *qdrant.ScoredPoint) search.SearchResult {
 		}
 	}
 
-	return search.SearchResult{
+	return store.SearchResult{
 		ID:      point.Id.String(),
 		Score:   point.Score,
 		Payload: mp,

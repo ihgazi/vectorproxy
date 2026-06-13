@@ -7,12 +7,12 @@ import (
 
 	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
 	"github.com/ihgazi/vectorproxy/internal/middleware"
-	"github.com/ihgazi/vectorproxy/internal/search"
+	"github.com/ihgazi/vectorproxy/internal/store"
 )
 
 // A simple mock handler for testing
-func mockHandler(resp *search.SearchResponse, err error) middleware.SearchHandler {
-	return func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+func mockHandler(resp *store.SearchResponse, err error) middleware.SearchHandler {
+	return func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		return resp, err
 	}
 }
@@ -23,10 +23,10 @@ type MockVectorStore struct {
 	Err         error
 }
 
-func (m *MockVectorStore) Search(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+func (m *MockVectorStore) Search(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 	return nil, nil
 }
-func (m *MockVectorStore) SearchBatch(ctx context.Context, reqs []*search.SearchQuery) ([]*search.SearchResponse, error) {
+func (m *MockVectorStore) SearchBatch(ctx context.Context, reqs []*store.SearchQuery) ([]*store.SearchResponse, error) {
 	return nil, nil
 }
 func (m *MockVectorStore) ListCollections(ctx context.Context) ([]string, error) {
@@ -35,7 +35,7 @@ func (m *MockVectorStore) ListCollections(ctx context.Context) ([]string, error)
 func (m *MockVectorStore) Close() error { return nil }
 
 func TestProxyServer_Search_HandlerCalled(t *testing.T) {
-	expectedResp := search.SearchResponse{Results: []search.SearchResult{{ID: "1"}}}
+	expectedResp := store.SearchResponse{Results: []store.SearchResult{{ID: "1"}}}
 	handler := mockHandler(&expectedResp, nil)
 	store := &MockVectorStore{}
 	server := NewProxyServer(handler, store)
@@ -54,12 +54,12 @@ func TestProxyServer_Search_HandlerCalled(t *testing.T) {
 func TestProxyServer_Search_InterceptorCalled(t *testing.T) {
 	called := false
 	interceptor := func(next middleware.SearchHandler) middleware.SearchHandler {
-		return func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+		return func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 			called = true
 			return next(ctx, req)
 		}
 	}
-	expectedResp := search.SearchResponse{Results: []search.SearchResult{{ID: "2"}}}
+	expectedResp := store.SearchResponse{Results: []store.SearchResult{{ID: "2"}}}
 	handler := middleware.Chain(
 		mockHandler(&expectedResp, nil),
 		interceptor,

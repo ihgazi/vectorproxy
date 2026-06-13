@@ -8,19 +8,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ihgazi/vectorproxy/internal/search"
+	"github.com/ihgazi/vectorproxy/internal/store"
 )
 
 func TestCapacityCoalescer_BypassWhenNoKey(t *testing.T) {
-	c := New(func(req *search.SearchQuery) string { return "" }, 5)
+	c := New(func(req *store.SearchQuery) string { return "" }, 5)
 
 	dbCalled := false
-	handler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	handler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		dbCalled = true
-		return &search.SearchResponse{}, nil
+		return &store.SearchResponse{}, nil
 	}
 
-	_, err := c.Do(context.Background(), &search.SearchQuery{TopK: 3}, handler)
+	_, err := c.Do(context.Background(), &store.SearchQuery{TopK: 3}, handler)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -30,14 +30,14 @@ func TestCapacityCoalescer_BypassWhenNoKey(t *testing.T) {
 }
 
 func TestCapacityCoalescer_CoalescesWhenFits(t *testing.T) {
-	c := New(func(req *search.SearchQuery) string { return "key1" }, 5)
+	c := New(func(req *store.SearchQuery) string { return "key1" }, 5)
 
 	var calls int32
-	handler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	handler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		atomic.AddInt32(&calls, 1)
 		time.Sleep(50 * time.Millisecond)
-		return &search.SearchResponse{
-			Results: []search.SearchResult{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"}},
+		return &store.SearchResponse{
+			Results: []store.SearchResult{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"}},
 		}, nil
 	}
 
@@ -46,7 +46,7 @@ func TestCapacityCoalescer_CoalescesWhenFits(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			res, err := c.Do(context.Background(), &search.SearchQuery{TopK: 3}, handler)
+			res, err := c.Do(context.Background(), &store.SearchQuery{TopK: 3}, handler)
 			if err != nil {
 				t.Errorf("unexpected err: %v", err)
 			}
@@ -63,18 +63,18 @@ func TestCapacityCoalescer_CoalescesWhenFits(t *testing.T) {
 }
 
 func TestCapacityCoalescer_BypassWhenExceedsCapacity(t *testing.T) {
-	c := New(func(req *search.SearchQuery) string { return "key1" }, 5)
+	c := New(func(req *store.SearchQuery) string { return "key1" }, 5)
 
 	var calls int32
 	waitCh := make(chan struct{})
 
-	handler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	handler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		atomic.AddInt32(&calls, 1)
 		if req.TopK == 5 {
 			<-waitCh // Block the first request so the second one arrives while it's in-flight
 		}
-		return &search.SearchResponse{
-			Results: make([]search.SearchResult, req.TopK),
+		return &store.SearchResponse{
+			Results: make([]store.SearchResult, req.TopK),
 		}, nil
 	}
 
@@ -82,7 +82,7 @@ func TestCapacityCoalescer_BypassWhenExceedsCapacity(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		c.Do(context.Background(), &search.SearchQuery{TopK: 5}, handler)
+		c.Do(context.Background(), &store.SearchQuery{TopK: 5}, handler)
 	}()
 
 	time.Sleep(10 * time.Millisecond) // Ensure the first request is in-flight
@@ -90,7 +90,7 @@ func TestCapacityCoalescer_BypassWhenExceedsCapacity(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		res, err := c.Do(context.Background(), &search.SearchQuery{TopK: 10}, handler)
+		res, err := c.Do(context.Background(), &store.SearchQuery{TopK: 10}, handler)
 		if err != nil {
 			t.Errorf("unexpected err: %v", err)
 		}
@@ -108,17 +108,17 @@ func TestCapacityCoalescer_BypassWhenExceedsCapacity(t *testing.T) {
 }
 
 func TestCapacityCoalescer_MinKUpgradesDispatch(t *testing.T) {
-	c := New(func(req *search.SearchQuery) string { return "key1" }, 10)
+	c := New(func(req *store.SearchQuery) string { return "key1" }, 10)
 
 	var dispatchedK int32
-	handler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	handler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		dispatchedK = req.TopK
-		return &search.SearchResponse{
-			Results: make([]search.SearchResult, req.TopK),
+		return &store.SearchResponse{
+			Results: make([]store.SearchResult, req.TopK),
 		}, nil
 	}
 
-	res, err := c.Do(context.Background(), &search.SearchQuery{TopK: 3}, handler)
+	res, err := c.Do(context.Background(), &store.SearchQuery{TopK: 3}, handler)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -131,28 +131,28 @@ func TestCapacityCoalescer_MinKUpgradesDispatch(t *testing.T) {
 }
 
 func TestCapacityCoalescer_TrimIsShallowCopy(t *testing.T) {
-	c := New(func(req *search.SearchQuery) string { return "key1" }, 5)
+	c := New(func(req *store.SearchQuery) string { return "key1" }, 5)
 
-	originalResp := &search.SearchResponse{
-		Results: []search.SearchResult{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"}},
+	originalResp := &store.SearchResponse{
+		Results: []store.SearchResult{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"}},
 	}
 
-	handler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	handler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		time.Sleep(50 * time.Millisecond)
 		return originalResp, nil
 	}
 
 	var wg sync.WaitGroup
-	var r1, r2 *search.SearchResponse
+	var r1, r2 *store.SearchResponse
 
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		r1, _ = c.Do(context.Background(), &search.SearchQuery{TopK: 2}, handler)
+		r1, _ = c.Do(context.Background(), &store.SearchQuery{TopK: 2}, handler)
 	}()
 	go func() {
 		defer wg.Done()
-		r2, _ = c.Do(context.Background(), &search.SearchQuery{TopK: 3}, handler)
+		r2, _ = c.Do(context.Background(), &store.SearchQuery{TopK: 3}, handler)
 	}()
 
 	wg.Wait()
@@ -180,10 +180,10 @@ func TestCapacityCoalescer_TrimIsShallowCopy(t *testing.T) {
 }
 
 func TestCapacityCoalescer_ErrorPropagation(t *testing.T) {
-	c := New(func(req *search.SearchQuery) string { return "key1" }, 5)
+	c := New(func(req *store.SearchQuery) string { return "key1" }, 5)
 
 	expectedErr := errors.New("handler error")
-	handler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	handler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		time.Sleep(50 * time.Millisecond)
 		return nil, expectedErr
 	}
@@ -193,7 +193,7 @@ func TestCapacityCoalescer_ErrorPropagation(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := c.Do(context.Background(), &search.SearchQuery{TopK: 3}, handler)
+			_, err := c.Do(context.Background(), &store.SearchQuery{TopK: 3}, handler)
 			if err != expectedErr {
 				t.Errorf("expected err %v, got %v", expectedErr, err)
 			}

@@ -9,21 +9,21 @@ import (
 	"time"
 
 	"github.com/ihgazi/vectorproxy/internal/keygen"
-	"github.com/ihgazi/vectorproxy/internal/search"
+	"github.com/ihgazi/vectorproxy/internal/store"
 )
 
 func TestCoalesceInterceptor_BypassWhenNoKey(t *testing.T) {
 	dbCalled := false
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	dbHandler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		dbCalled = true
-		return &search.SearchResponse{}, nil
+		return &store.SearchResponse{}, nil
 	}
 
-	dummyGen := func(req *search.SearchQuery) string { return "" }
+	dummyGen := func(req *store.SearchQuery) string { return "" }
 	interceptor := NewCoalesceInterceptor(dummyGen, 5)
 	wrapped := interceptor(dbHandler)
 
-	req := &search.SearchQuery{Collection: "test", TopK: 3}
+	req := &store.SearchQuery{Collection: "test", TopK: 3}
 	_, err := wrapped(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -35,11 +35,11 @@ func TestCoalesceInterceptor_BypassWhenNoKey(t *testing.T) {
 
 func TestCoalesceInterceptor_CoalescesWhenFits(t *testing.T) {
 	var calls int32
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	dbHandler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		atomic.AddInt32(&calls, 1)
 		time.Sleep(50 * time.Millisecond)
-		return &search.SearchResponse{
-			Results: []search.SearchResult{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"}},
+		return &store.SearchResponse{
+			Results: []store.SearchResult{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"}},
 		}, nil
 	}
 
@@ -52,7 +52,7 @@ func TestCoalesceInterceptor_CoalescesWhenFits(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			req := &search.SearchQuery{Collection: "test-col", Query: "prompt", TopK: 3}
+			req := &store.SearchQuery{Collection: "test-col", Query: "prompt", TopK: 3}
 			res, err := wrapped(context.Background(), req)
 			if err != nil {
 				t.Errorf("unexpected err: %v", err)
@@ -73,13 +73,13 @@ func TestCoalesceInterceptor_BypassWhenExceedsCapacity(t *testing.T) {
 	var calls int32
 	waitCh := make(chan struct{})
 
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	dbHandler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		atomic.AddInt32(&calls, 1)
 		if req.TopK == 5 {
 			<-waitCh // Block the first request so the second one arrives while it's in-flight
 		}
-		return &search.SearchResponse{
-			Results: make([]search.SearchResult, req.TopK),
+		return &store.SearchResponse{
+			Results: make([]store.SearchResult, req.TopK),
 		}, nil
 	}
 
@@ -91,7 +91,7 @@ func TestCoalesceInterceptor_BypassWhenExceedsCapacity(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		wrapped(context.Background(), &search.SearchQuery{Collection: "col", Query: "q", TopK: 5})
+		wrapped(context.Background(), &store.SearchQuery{Collection: "col", Query: "q", TopK: 5})
 	}()
 
 	time.Sleep(10 * time.Millisecond) // Ensure the first request is in-flight
@@ -99,7 +99,7 @@ func TestCoalesceInterceptor_BypassWhenExceedsCapacity(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		res, err := wrapped(context.Background(), &search.SearchQuery{Collection: "col", Query: "q", TopK: 10})
+		res, err := wrapped(context.Background(), &store.SearchQuery{Collection: "col", Query: "q", TopK: 10})
 		if err != nil {
 			t.Errorf("unexpected err: %v", err)
 		}
@@ -118,10 +118,10 @@ func TestCoalesceInterceptor_BypassWhenExceedsCapacity(t *testing.T) {
 
 func TestCoalesceInterceptor_MinKUpgradesDispatch(t *testing.T) {
 	var dispatchedK int32
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	dbHandler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		dispatchedK = req.TopK
-		return &search.SearchResponse{
-			Results: make([]search.SearchResult, req.TopK),
+		return &store.SearchResponse{
+			Results: make([]store.SearchResult, req.TopK),
 		}, nil
 	}
 
@@ -129,7 +129,7 @@ func TestCoalesceInterceptor_MinKUpgradesDispatch(t *testing.T) {
 	interceptor := NewCoalesceInterceptor(stringGen, 10)
 	wrapped := interceptor(dbHandler)
 
-	req := &search.SearchQuery{Collection: "col", Query: "q", TopK: 3}
+	req := &store.SearchQuery{Collection: "col", Query: "q", TopK: 3}
 	res, err := wrapped(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
@@ -143,11 +143,11 @@ func TestCoalesceInterceptor_MinKUpgradesDispatch(t *testing.T) {
 }
 
 func TestCoalesceInterceptor_TrimIsShallowCopy(t *testing.T) {
-	originalResp := &search.SearchResponse{
-		Results: []search.SearchResult{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"}},
+	originalResp := &store.SearchResponse{
+		Results: []store.SearchResult{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}, {ID: "5"}},
 	}
 
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	dbHandler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		time.Sleep(50 * time.Millisecond)
 		return originalResp, nil
 	}
@@ -157,16 +157,16 @@ func TestCoalesceInterceptor_TrimIsShallowCopy(t *testing.T) {
 	wrapped := interceptor(dbHandler)
 
 	var wg sync.WaitGroup
-	var r1, r2 *search.SearchResponse
+	var r1, r2 *store.SearchResponse
 
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		r1, _ = wrapped(context.Background(), &search.SearchQuery{Collection: "c", Query: "q", TopK: 2})
+		r1, _ = wrapped(context.Background(), &store.SearchQuery{Collection: "c", Query: "q", TopK: 2})
 	}()
 	go func() {
 		defer wg.Done()
-		r2, _ = wrapped(context.Background(), &search.SearchQuery{Collection: "c", Query: "q", TopK: 3})
+		r2, _ = wrapped(context.Background(), &store.SearchQuery{Collection: "c", Query: "q", TopK: 3})
 	}()
 
 	wg.Wait()
@@ -194,7 +194,7 @@ func TestCoalesceInterceptor_TrimIsShallowCopy(t *testing.T) {
 
 func TestCoalesceInterceptor_ErrorPropagation(t *testing.T) {
 	expectedErr := errors.New("handler error")
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	dbHandler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		time.Sleep(50 * time.Millisecond)
 		return nil, expectedErr
 	}
@@ -208,7 +208,7 @@ func TestCoalesceInterceptor_ErrorPropagation(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := wrapped(context.Background(), &search.SearchQuery{Collection: "c", Query: "q", TopK: 3})
+			_, err := wrapped(context.Background(), &store.SearchQuery{Collection: "c", Query: "q", TopK: 3})
 			if err != expectedErr {
 				t.Errorf("expected err %v, got %v", expectedErr, err)
 			}

@@ -6,16 +6,16 @@ import (
 	"hash/fnv"
 	"math"
 
-	"github.com/ihgazi/vectorproxy/internal/search"
+	"github.com/ihgazi/vectorproxy/internal/store"
 )
 
 // KeyGenerator defines the function signature for extracting a deduplication key.
 // Returning an empty string will bypass the coalescing logic.
-type KeyGenerator func(req *search.SearchQuery) string
+type KeyGenerator func(req *store.SearchQuery) string
 
 // NewStringKeyGenerator creates a key based on collection and raw query text.
 func NewStringKeyGenerator() KeyGenerator {
-	return func(req *search.SearchQuery) string {
+	return func(req *store.SearchQuery) string {
 		if req.Query == "" {
 			return ""
 		}
@@ -26,7 +26,7 @@ func NewStringKeyGenerator() KeyGenerator {
 
 // NewVectorKeyGenerator creates a key based on collection and vector hash.
 func NewVectorKeyGenerator() KeyGenerator {
-	return func(req *search.SearchQuery) string {
+	return func(req *store.SearchQuery) string {
 		if len(req.Vector) == 0 {
 			return ""
 		}

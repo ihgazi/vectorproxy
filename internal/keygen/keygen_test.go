@@ -3,7 +3,7 @@ package keygen
 import (
 	"testing"
 
-	"github.com/ihgazi/vectorproxy/internal/search"
+	"github.com/ihgazi/vectorproxy/internal/store"
 )
 
 func TestHashVector(t *testing.T) {
@@ -28,13 +28,13 @@ func TestStringKeyGenerator(t *testing.T) {
 	gen := NewStringKeyGenerator()
 
 	// 1. Should return empty key for empty query prompt
-	reqEmpty := &search.SearchQuery{Collection: "test", Query: ""}
+	reqEmpty := &store.SearchQuery{Collection: "test", Query: ""}
 	if k := gen(reqEmpty); k != "" {
 		t.Errorf("expected empty string key, got %q", k)
 	}
 
 	// 2. Should return key formatted correctly
-	req := &search.SearchQuery{Collection: "books", Query: "Go programming"}
+	req := &store.SearchQuery{Collection: "books", Query: "Go programming"}
 	expected := "str:books:Go programming"
 	if k := gen(req); k != expected {
 		t.Errorf("expected key %q, got %q", expected, k)
@@ -45,13 +45,13 @@ func TestVectorKeyGenerator(t *testing.T) {
 	gen := NewVectorKeyGenerator()
 
 	// 1. Should return empty key for empty vector
-	reqEmpty := &search.SearchQuery{Collection: "test", Vector: nil}
+	reqEmpty := &store.SearchQuery{Collection: "test", Vector: nil}
 	if k := gen(reqEmpty); k != "" {
 		t.Errorf("expected empty string key, got %q", k)
 	}
 
 	// 2. Should return key formatted with vector hash
-	req := &search.SearchQuery{Collection: "images", Vector: []float32{0.5, 0.6}}
+	req := &store.SearchQuery{Collection: "images", Vector: []float32{0.5, 0.6}}
 	hash := HashVector(req.Vector)
 	expected := "vec:images:" + hash
 	if k := gen(req); k != expected {

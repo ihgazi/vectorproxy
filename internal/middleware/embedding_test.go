@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ihgazi/vectorproxy/internal/search"
+	"github.com/ihgazi/vectorproxy/internal/store"
 )
 
 type mockEmbedder struct {
@@ -31,18 +31,18 @@ func TestEmbeddingInterceptor_SingleRequest(t *testing.T) {
 	}
 
 	dbCalled := false
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	dbHandler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		dbCalled = true
 		if len(req.Vector) != 2 || req.Vector[0] != 0.9 {
 			t.Errorf("expected generated vector, got %v", req.Vector)
 		}
-		return &search.SearchResponse{}, nil
+		return &store.SearchResponse{}, nil
 	}
 
 	interceptor := NewEmbeddingInterceptor(me)
 	wrapped := interceptor(dbHandler)
 
-	req := &search.SearchQuery{Collection: "test", Query: "hello"}
+	req := &store.SearchQuery{Collection: "test", Query: "hello"}
 	_, err := wrapped(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -65,8 +65,8 @@ func TestEmbeddingInterceptor_Coalescing(t *testing.T) {
 		},
 	}
 
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
-		return &search.SearchResponse{}, nil
+	dbHandler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
+		return &store.SearchResponse{}, nil
 	}
 
 	interceptor := NewEmbeddingInterceptor(me)
@@ -80,7 +80,7 @@ func TestEmbeddingInterceptor_Coalescing(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			req := &search.SearchQuery{Collection: "test", Query: "what is go?"}
+			req := &store.SearchQuery{Collection: "test", Query: "what is go?"}
 			_, _ = wrapped(context.Background(), req)
 		}()
 	}

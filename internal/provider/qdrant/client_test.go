@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ihgazi/vectorproxy/internal/search"
+	"github.com/ihgazi/vectorproxy/internal/store"
 	"github.com/qdrant/go-client/qdrant"
 )
 
@@ -55,7 +55,7 @@ func TestSearchMapping(t *testing.T) {
 	}
 	client := &Client{qClient: mockClient}
 
-	req := search.SearchQuery{
+	req := store.SearchQuery{
 		Collection: "test-collection",
 		Vector:     []float32{0.1, 0.2, 0.3},
 		TopK:       5,

@@ -6,17 +6,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ihgazi/vectorproxy/internal/search"
+	"github.com/ihgazi/vectorproxy/internal/store"
 )
 
 // BatchHandler mirrors the SearchHandler signature to keep this package decoupled.
-type BatchHandler func(ctx context.Context, req []*search.SearchQuery) ([]*search.SearchResponse, error)
+type BatchHandler func(ctx context.Context, req []*store.SearchQuery) ([]*store.SearchResponse, error)
 
 // batchItem represents a single search query in a batch request.
 type batchItem struct {
-	req      *search.SearchQuery
+	req      *store.SearchQuery
 	ctx      context.Context
-	respChan chan *search.SearchResponse
+	respChan chan *store.SearchResponse
 	errChan  chan error
 }
 
@@ -43,10 +43,10 @@ func New(next BatchHandler, maxBatchSize int, batchWindow time.Duration) *Reques
 
 // Search adds incoming requsts to the batch buffer.
 // It triggers batch dispatch when either batch window elapses or max batch size is reached.
-func (b *RequestBatcher) Search(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+func (b *RequestBatcher) Search(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 	if b.maxBatchSize <= 0 || b.batchWindow <= 0 {
 		// If no batching is configured, call the next handler directly.
-		resp, err := b.next(ctx, []*search.SearchQuery{req})
+		resp, err := b.next(ctx, []*store.SearchQuery{req})
 		if err != nil {
 			return nil, err
 		}
@@ -56,7 +56,7 @@ func (b *RequestBatcher) Search(ctx context.Context, req *search.SearchQuery) (*
 	item := &batchItem{
 		req:      req,
 		ctx:      ctx,
-		respChan: make(chan *search.SearchResponse, 1),
+		respChan: make(chan *store.SearchResponse, 1),
 		errChan:  make(chan error, 1),
 	}
 
@@ -119,7 +119,7 @@ func (b *RequestBatcher) doFlush() {
 
 func (b *RequestBatcher) flushCollection(collection string, batch []*batchItem) {
 	// Extract search queries for the batch request
-	var reqs []*search.SearchQuery
+	var reqs []*store.SearchQuery
 	var activeItems []*batchItem
 	for _, item := range batch {
 		if item.ctx.Err() == nil {

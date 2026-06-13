@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/ihgazi/vectorproxy/internal/embedding"
-	"github.com/ihgazi/vectorproxy/internal/search"
+	"github.com/ihgazi/vectorproxy/internal/store"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -14,7 +14,7 @@ func NewEmbeddingInterceptor(e embedding.Embedder) Interceptor {
 	var group singleflight.Group
 
 	return func(next SearchHandler) SearchHandler {
-		return func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+		return func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 			if len(req.Vector) == 0 && req.Query != "" {
 				val, err, shared := group.Do(req.Query, func() (interface{}, error) {
 					return e.Embed(ctx, req.Query)

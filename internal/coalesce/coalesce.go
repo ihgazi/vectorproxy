@@ -5,16 +5,16 @@ import (
 	"sync"
 
 	"github.com/ihgazi/vectorproxy/internal/keygen"
-	"github.com/ihgazi/vectorproxy/internal/search"
+	"github.com/ihgazi/vectorproxy/internal/store"
 )
 
 // Handler mirrors the SearchHandler signature to keep this package decoupled.
-type Handler func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error)
+type Handler func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error)
 
 type inflightRequest struct {
 	dispatchedK int32
 	done        chan struct{}
-	result      *search.SearchResponse
+	result      *store.SearchResponse
 	err         error
 }
 
@@ -37,7 +37,7 @@ func New(generator keygen.KeyGenerator, minK int32) *CapacityCoalescer {
 
 // Do executes and returns the results of the given function, making
 // sure that only one execution is in-flight for a given key and capacity.
-func (c *CapacityCoalescer) Do(ctx context.Context, req *search.SearchQuery, fn Handler) (*search.SearchResponse, error) {
+func (c *CapacityCoalescer) Do(ctx context.Context, req *store.SearchQuery, fn Handler) (*store.SearchResponse, error) {
 	key := c.generator(req)
 
 	if key == "" {
@@ -94,12 +94,12 @@ func (c *CapacityCoalescer) Do(ctx context.Context, req *search.SearchQuery, fn 
 	return trimResponse(result, req.TopK), nil
 }
 
-func trimResponse(resp *search.SearchResponse, topK int32) *search.SearchResponse {
+func trimResponse(resp *store.SearchResponse, topK int32) *store.SearchResponse {
 	if resp == nil || int(topK) >= len(resp.Results) {
 		return resp
 	}
 	trimmed := *resp
-	trimmed.Results = make([]search.SearchResult, topK)
+	trimmed.Results = make([]store.SearchResult, topK)
 	copy(trimmed.Results, resp.Results[:topK])
 	return &trimmed
 }

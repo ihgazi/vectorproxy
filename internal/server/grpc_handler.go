@@ -6,7 +6,7 @@ import (
 
 	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
 	"github.com/ihgazi/vectorproxy/internal/middleware"
-	"github.com/ihgazi/vectorproxy/internal/search"
+	"github.com/ihgazi/vectorproxy/internal/store"
 
 	structpb "google.golang.org/protobuf/types/known/structpb"
 )
@@ -14,10 +14,10 @@ import (
 type ProxyServer struct {
 	pb.UnimplementedProxyServiceServer
 	handler     middleware.SearchHandler
-	vectorStore search.VectorStore
+	vectorStore store.VectorStore
 }
 
-func NewProxyServer(h middleware.SearchHandler, store search.VectorStore) *ProxyServer {
+func NewProxyServer(h middleware.SearchHandler, store store.VectorStore) *ProxyServer {
 	return &ProxyServer{handler: h, vectorStore: store}
 }
 
@@ -42,7 +42,7 @@ func (s *ProxyServer) ListCollections(ctx context.Context, req *pb.ListCollectio
 	return &pb.ListCollectionsResponse{Collections: collections}, nil
 }
 
-func protoToDomainQuery(pbreq *pb.SearchRequest) *search.SearchQuery {
+func protoToDomainQuery(pbreq *pb.SearchRequest) *store.SearchQuery {
 	pbFilter := pbreq.Filter.AsMap()
 	if pbFilter == nil {
 		pbFilter = make(map[string]any)
@@ -58,7 +58,7 @@ func protoToDomainQuery(pbreq *pb.SearchRequest) *search.SearchQuery {
 		searchFilter[k] = strVal
 	}
 
-	return &search.SearchQuery{
+	return &store.SearchQuery{
 		Collection: pbreq.Collection,
 		Vector:     pbreq.Vector,
 		TopK:       pbreq.TopK,
@@ -67,7 +67,7 @@ func protoToDomainQuery(pbreq *pb.SearchRequest) *search.SearchQuery {
 	}
 }
 
-func domainToProtoResponse(dmresp *search.SearchResponse) *pb.SearchResponse {
+func domainToProtoResponse(dmresp *store.SearchResponse) *pb.SearchResponse {
 	protoResults := make([]*pb.SearchResult, len(dmresp.Results))
 	for i, res := range dmresp.Results {
 		payload, err := structpb.NewStruct(res.Payload)

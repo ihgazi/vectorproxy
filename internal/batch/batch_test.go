@@ -8,20 +8,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ihgazi/vectorproxy/internal/search"
+	"github.com/ihgazi/vectorproxy/internal/store"
 )
 
 func TestRequestBatcher_SizeTrigger(t *testing.T) {
 	var batchCount int32
 	var reqCount int32
 
-	handler := func(ctx context.Context, reqs []*search.SearchQuery) ([]*search.SearchResponse, error) {
+	handler := func(ctx context.Context, reqs []*store.SearchQuery) ([]*store.SearchResponse, error) {
 		atomic.AddInt32(&batchCount, 1)
 		atomic.AddInt32(&reqCount, int32(len(reqs)))
 
-		resps := make([]*search.SearchResponse, len(reqs))
+		resps := make([]*store.SearchResponse, len(reqs))
 		for i := range reqs {
-			resps[i] = &search.SearchResponse{Results: []search.SearchResult{{ID: "1"}}}
+			resps[i] = &store.SearchResponse{Results: []store.SearchResult{{ID: "1"}}}
 		}
 		return resps, nil
 	}
@@ -33,7 +33,7 @@ func TestRequestBatcher_SizeTrigger(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := batcher.Search(context.Background(), &search.SearchQuery{Collection: "c1"})
+			_, err := batcher.Search(context.Background(), &store.SearchQuery{Collection: "c1"})
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
@@ -56,11 +56,11 @@ func TestRequestBatcher_SizeTrigger(t *testing.T) {
 func TestRequestBatcher_WindowTrigger(t *testing.T) {
 	var batchCount int32
 
-	handler := func(ctx context.Context, reqs []*search.SearchQuery) ([]*search.SearchResponse, error) {
+	handler := func(ctx context.Context, reqs []*store.SearchQuery) ([]*store.SearchResponse, error) {
 		atomic.AddInt32(&batchCount, 1)
-		resps := make([]*search.SearchResponse, len(reqs))
+		resps := make([]*store.SearchResponse, len(reqs))
 		for i := range reqs {
-			resps[i] = &search.SearchResponse{}
+			resps[i] = &store.SearchResponse{}
 		}
 		return resps, nil
 	}
@@ -68,7 +68,7 @@ func TestRequestBatcher_WindowTrigger(t *testing.T) {
 	batcher := New(handler, 10, 50*time.Millisecond) // Large size, short window
 	go batcher.FlushLoop()
 
-	_, err := batcher.Search(context.Background(), &search.SearchQuery{Collection: "c1"})
+	_, err := batcher.Search(context.Background(), &store.SearchQuery{Collection: "c1"})
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -82,17 +82,17 @@ func TestRequestBatcher_CollectionGrouping(t *testing.T) {
 	var mu sync.Mutex
 	collectionsSeen := make(map[string]int)
 
-	handler := func(ctx context.Context, reqs []*search.SearchQuery) ([]*search.SearchResponse, error) {
+	handler := func(ctx context.Context, reqs []*store.SearchQuery) ([]*store.SearchResponse, error) {
 		mu.Lock()
 		collectionsSeen[reqs[0].Collection] = len(reqs)
 		mu.Unlock()
 
-		resps := make([]*search.SearchResponse, len(reqs))
+		resps := make([]*store.SearchResponse, len(reqs))
 		for i := range reqs {
 			if reqs[i].Collection != reqs[0].Collection {
 				t.Errorf("Mixed collections in batch: %s and %s", reqs[0].Collection, reqs[i].Collection)
 			}
-			resps[i] = &search.SearchResponse{}
+			resps[i] = &store.SearchResponse{}
 		}
 		return resps, nil
 	}
@@ -107,7 +107,7 @@ func TestRequestBatcher_CollectionGrouping(t *testing.T) {
 		wg.Add(1)
 		go func(c string) {
 			defer wg.Done()
-			_, err := batcher.Search(context.Background(), &search.SearchQuery{Collection: c})
+			_, err := batcher.Search(context.Background(), &store.SearchQuery{Collection: c})
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
@@ -129,11 +129,11 @@ func TestRequestBatcher_CollectionGrouping(t *testing.T) {
 func TestRequestBatcher_BypassWhenDisabled(t *testing.T) {
 	var batchCount int32
 
-	handler := func(ctx context.Context, reqs []*search.SearchQuery) ([]*search.SearchResponse, error) {
+	handler := func(ctx context.Context, reqs []*store.SearchQuery) ([]*store.SearchResponse, error) {
 		atomic.AddInt32(&batchCount, 1)
-		resps := make([]*search.SearchResponse, len(reqs))
+		resps := make([]*store.SearchResponse, len(reqs))
 		for i := range reqs {
-			resps[i] = &search.SearchResponse{}
+			resps[i] = &store.SearchResponse{}
 		}
 		return resps, nil
 	}
@@ -147,7 +147,7 @@ func TestRequestBatcher_BypassWhenDisabled(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := batcher.Search(context.Background(), &search.SearchQuery{Collection: "c1"})
+			_, err := batcher.Search(context.Background(), &store.SearchQuery{Collection: "c1"})
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
@@ -164,11 +164,11 @@ func TestRequestBatcher_BypassWhenDisabled(t *testing.T) {
 func TestRequestBatcher_Cancellation(t *testing.T) {
 	var reqCount int32
 
-	handler := func(ctx context.Context, reqs []*search.SearchQuery) ([]*search.SearchResponse, error) {
+	handler := func(ctx context.Context, reqs []*store.SearchQuery) ([]*store.SearchResponse, error) {
 		atomic.AddInt32(&reqCount, int32(len(reqs)))
-		resps := make([]*search.SearchResponse, len(reqs))
+		resps := make([]*store.SearchResponse, len(reqs))
 		for i := range reqs {
-			resps[i] = &search.SearchResponse{}
+			resps[i] = &store.SearchResponse{}
 		}
 		return resps, nil
 	}
@@ -183,7 +183,7 @@ func TestRequestBatcher_Cancellation(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_, err := batcher.Search(ctx, &search.SearchQuery{Collection: "c1"})
+		_, err := batcher.Search(ctx, &store.SearchQuery{Collection: "c1"})
 		if err == nil || !errors.Is(err, context.Canceled) {
 			t.Errorf("Expected context canceled error, got: %v", err)
 		}
@@ -193,7 +193,7 @@ func TestRequestBatcher_Cancellation(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_, err := batcher.Search(context.Background(), &search.SearchQuery{Collection: "c1"})
+		_, err := batcher.Search(context.Background(), &store.SearchQuery{Collection: "c1"})
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -209,7 +209,7 @@ func TestRequestBatcher_Cancellation(t *testing.T) {
 func TestRequestBatcher_ErrorPropagation(t *testing.T) {
 	expectedErr := errors.New("database failure")
 
-	handler := func(ctx context.Context, reqs []*search.SearchQuery) ([]*search.SearchResponse, error) {
+	handler := func(ctx context.Context, reqs []*store.SearchQuery) ([]*store.SearchResponse, error) {
 		return nil, expectedErr
 	}
 
@@ -221,7 +221,7 @@ func TestRequestBatcher_ErrorPropagation(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := batcher.Search(context.Background(), &search.SearchQuery{Collection: "c1"})
+			_, err := batcher.Search(context.Background(), &store.SearchQuery{Collection: "c1"})
 			if err != expectedErr {
 				t.Errorf("Expected %v, got %v", expectedErr, err)
 			}

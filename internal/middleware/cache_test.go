@@ -5,23 +5,23 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ihgazi/vectorproxy/internal/search"
+	"github.com/ihgazi/vectorproxy/internal/store"
 )
 
 // MockSemanticCache implements the cache.SemanticCache interface for testing.
 type MockSemanticCache struct {
-	GetFunc func(ctx context.Context, collection string, vector []float32, topK int32) (*search.SearchResponse, bool, error)
-	SetFunc func(ctx context.Context, collection string, vector []float32, resp *search.SearchResponse) error
+	GetFunc func(ctx context.Context, collection string, vector []float32, topK int32) (*store.SearchResponse, bool, error)
+	SetFunc func(ctx context.Context, collection string, vector []float32, resp *store.SearchResponse) error
 }
 
-func (m *MockSemanticCache) Get(ctx context.Context, collection string, vector []float32, topK int32) (*search.SearchResponse, bool, error) {
+func (m *MockSemanticCache) Get(ctx context.Context, collection string, vector []float32, topK int32) (*store.SearchResponse, bool, error) {
 	if m.GetFunc != nil {
 		return m.GetFunc(ctx, collection, vector, topK)
 	}
 	return nil, false, nil
 }
 
-func (m *MockSemanticCache) Set(ctx context.Context, collection string, vector []float32, resp *search.SearchResponse) error {
+func (m *MockSemanticCache) Set(ctx context.Context, collection string, vector []float32, resp *store.SearchResponse) error {
 	if m.SetFunc != nil {
 		return m.SetFunc(ctx, collection, vector, resp)
 	}
@@ -32,16 +32,16 @@ func (m *MockSemanticCache) Close() error { return nil }
 
 func TestCacheInterceptor_BypassWhenNoVector(t *testing.T) {
 	called := false
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	dbHandler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		called = true
-		return &search.SearchResponse{}, nil
+		return &store.SearchResponse{}, nil
 	}
 
 	mc := &MockSemanticCache{}
 	interceptor := NewCacheInterceptor(mc)
 	wrapped := interceptor(dbHandler)
 
-	req := &search.SearchQuery{Collection: "test"} // No vector
+	req := &store.SearchQuery{Collection: "test"} // No vector
 	_, err := wrapped(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -53,17 +53,17 @@ func TestCacheInterceptor_BypassWhenNoVector(t *testing.T) {
 
 func TestCacheInterceptor_CacheHit(t *testing.T) {
 	dbCalled := false
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	dbHandler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		dbCalled = true
-		return &search.SearchResponse{}, nil
+		return &store.SearchResponse{}, nil
 	}
 
-	expectedResp := &search.SearchResponse{
-		Results: []search.SearchResult{{ID: "cached-id", Score: 0.99}},
+	expectedResp := &store.SearchResponse{
+		Results: []store.SearchResult{{ID: "cached-id", Score: 0.99}},
 	}
 
 	mc := &MockSemanticCache{
-		GetFunc: func(ctx context.Context, collection string, vector []float32, topK int32) (*search.SearchResponse, bool, error) {
+		GetFunc: func(ctx context.Context, collection string, vector []float32, topK int32) (*store.SearchResponse, bool, error) {
 			return expectedResp, true, nil
 		},
 	}
@@ -71,7 +71,7 @@ func TestCacheInterceptor_CacheHit(t *testing.T) {
 	interceptor := NewCacheInterceptor(mc)
 	wrapped := interceptor(dbHandler)
 
-	req := &search.SearchQuery{Collection: "test", Vector: []float32{0.1, 0.2}}
+	req := &store.SearchQuery{Collection: "test", Vector: []float32{0.1, 0.2}}
 	resp, err := wrapped(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -86,20 +86,20 @@ func TestCacheInterceptor_CacheHit(t *testing.T) {
 
 func TestCacheInterceptor_CacheMissAndSet(t *testing.T) {
 	dbCalled := false
-	expectedResp := &search.SearchResponse{
-		Results: []search.SearchResult{{ID: "db-id", Score: 0.88}},
+	expectedResp := &store.SearchResponse{
+		Results: []store.SearchResult{{ID: "db-id", Score: 0.88}},
 	}
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	dbHandler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		dbCalled = true
 		return expectedResp, nil
 	}
 
 	setCalled := false
 	mc := &MockSemanticCache{
-		GetFunc: func(ctx context.Context, collection string, vector []float32, topK int32) (*search.SearchResponse, bool, error) {
+		GetFunc: func(ctx context.Context, collection string, vector []float32, topK int32) (*store.SearchResponse, bool, error) {
 			return nil, false, nil // Cache miss
 		},
-		SetFunc: func(ctx context.Context, collection string, vector []float32, resp *search.SearchResponse) error {
+		SetFunc: func(ctx context.Context, collection string, vector []float32, resp *store.SearchResponse) error {
 			setCalled = true
 			if resp != expectedResp {
 				t.Errorf("expected set payload %v, got %v", expectedResp, resp)
@@ -111,7 +111,7 @@ func TestCacheInterceptor_CacheMissAndSet(t *testing.T) {
 	interceptor := NewCacheInterceptor(mc)
 	wrapped := interceptor(dbHandler)
 
-	req := &search.SearchQuery{Collection: "test", Vector: []float32{0.1, 0.2}}
+	req := &store.SearchQuery{Collection: "test", Vector: []float32{0.1, 0.2}}
 	resp, err := wrapped(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -129,16 +129,16 @@ func TestCacheInterceptor_CacheMissAndSet(t *testing.T) {
 
 func TestCacheInterceptor_FailOpenOnCacheError(t *testing.T) {
 	dbCalled := false
-	expectedResp := &search.SearchResponse{
-		Results: []search.SearchResult{{ID: "db-id"}},
+	expectedResp := &store.SearchResponse{
+		Results: []store.SearchResult{{ID: "db-id"}},
 	}
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	dbHandler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		dbCalled = true
 		return expectedResp, nil
 	}
 
 	mc := &MockSemanticCache{
-		GetFunc: func(ctx context.Context, collection string, vector []float32, topK int32) (*search.SearchResponse, bool, error) {
+		GetFunc: func(ctx context.Context, collection string, vector []float32, topK int32) (*store.SearchResponse, bool, error) {
 			return nil, false, errors.New("cache error")
 		},
 	}
@@ -146,7 +146,7 @@ func TestCacheInterceptor_FailOpenOnCacheError(t *testing.T) {
 	interceptor := NewCacheInterceptor(mc)
 	wrapped := interceptor(dbHandler)
 
-	req := &search.SearchQuery{Collection: "test", Vector: []float32{0.1, 0.2}}
+	req := &store.SearchQuery{Collection: "test", Vector: []float32{0.1, 0.2}}
 	resp, err := wrapped(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v (should fail open)", err)
@@ -163,18 +163,18 @@ func TestCacheInterceptor_FailOpenOnCacheError(t *testing.T) {
 // returns a hit with exactly topK results (already trimmed), the DB is not called.
 func TestCacheInterceptor_TopKHit_SufficientResults(t *testing.T) {
 	dbCalled := false
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	dbHandler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		dbCalled = true
-		return &search.SearchResponse{}, nil
+		return &store.SearchResponse{}, nil
 	}
 
 	// Simulates what the real cache returns after trimming: exactly topK=3 results.
-	trimmedResp := &search.SearchResponse{
-		Results: []search.SearchResult{{ID: "r1"}, {ID: "r2"}, {ID: "r3"}},
+	trimmedResp := &store.SearchResponse{
+		Results: []store.SearchResult{{ID: "r1"}, {ID: "r2"}, {ID: "r3"}},
 	}
 
 	mc := &MockSemanticCache{
-		GetFunc: func(ctx context.Context, collection string, vector []float32, topK int32) (*search.SearchResponse, bool, error) {
+		GetFunc: func(ctx context.Context, collection string, vector []float32, topK int32) (*store.SearchResponse, bool, error) {
 			return trimmedResp, true, nil
 		},
 	}
@@ -182,7 +182,7 @@ func TestCacheInterceptor_TopKHit_SufficientResults(t *testing.T) {
 	interceptor := NewCacheInterceptor(mc)
 	wrapped := interceptor(dbHandler)
 
-	req := &search.SearchQuery{Collection: "test", Vector: []float32{0.1, 0.2}, TopK: 3}
+	req := &store.SearchQuery{Collection: "test", Vector: []float32{0.1, 0.2}, TopK: 3}
 	resp, err := wrapped(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -199,16 +199,16 @@ func TestCacheInterceptor_TopKHit_SufficientResults(t *testing.T) {
 // returns a miss (because stored results < topK), the DB is queried.
 func TestCacheInterceptor_TopKMiss_InsufficientResults(t *testing.T) {
 	dbCalled := false
-	dbResp := &search.SearchResponse{
-		Results: []search.SearchResult{{ID: "r1"}, {ID: "r2"}, {ID: "r3"}, {ID: "r4"}, {ID: "r5"}},
+	dbResp := &store.SearchResponse{
+		Results: []store.SearchResult{{ID: "r1"}, {ID: "r2"}, {ID: "r3"}, {ID: "r4"}, {ID: "r5"}},
 	}
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
+	dbHandler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 		dbCalled = true
 		return dbResp, nil
 	}
 
 	mc := &MockSemanticCache{
-		GetFunc: func(ctx context.Context, collection string, vector []float32, topK int32) (*search.SearchResponse, bool, error) {
+		GetFunc: func(ctx context.Context, collection string, vector []float32, topK int32) (*store.SearchResponse, bool, error) {
 			// Simulates the real cache returning a miss: only 2 results cached, topK=5 requested.
 			return nil, false, nil
 		},
@@ -217,7 +217,7 @@ func TestCacheInterceptor_TopKMiss_InsufficientResults(t *testing.T) {
 	interceptor := NewCacheInterceptor(mc)
 	wrapped := interceptor(dbHandler)
 
-	req := &search.SearchQuery{Collection: "test", Vector: []float32{0.1, 0.2}, TopK: 5}
+	req := &store.SearchQuery{Collection: "test", Vector: []float32{0.1, 0.2}, TopK: 5}
 	resp, err := wrapped(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -236,20 +236,20 @@ func TestCacheInterceptor_TopKForwardedToGet(t *testing.T) {
 	var receivedTopK int32 = -1
 
 	mc := &MockSemanticCache{
-		GetFunc: func(ctx context.Context, collection string, vector []float32, topK int32) (*search.SearchResponse, bool, error) {
+		GetFunc: func(ctx context.Context, collection string, vector []float32, topK int32) (*store.SearchResponse, bool, error) {
 			receivedTopK = topK
 			return nil, false, nil
 		},
 	}
 
-	dbHandler := func(ctx context.Context, req *search.SearchQuery) (*search.SearchResponse, error) {
-		return &search.SearchResponse{}, nil
+	dbHandler := func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
+		return &store.SearchResponse{}, nil
 	}
 
 	interceptor := NewCacheInterceptor(mc)
 	wrapped := interceptor(dbHandler)
 
-	req := &search.SearchQuery{Collection: "test", Vector: []float32{0.1, 0.2}, TopK: 7}
+	req := &store.SearchQuery{Collection: "test", Vector: []float32{0.1, 0.2}, TopK: 7}
 	if _, err := wrapped(context.Background(), req); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/ihgazi/vectorproxy/internal/keygen"
-	"github.com/ihgazi/vectorproxy/internal/search"
+	"github.com/ihgazi/vectorproxy/internal/store"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -55,7 +55,7 @@ func NewRedisCache(cfg Config) (SemanticCache, error) {
 }
 
 // Get queries Redis vector similarity space for a match.
-func (r *RedisCache) Get(ctx context.Context, collection string, vector []float32, topK int32) (*search.SearchResponse, bool, error) {
+func (r *RedisCache) Get(ctx context.Context, collection string, vector []float32, topK int32) (*store.SearchResponse, bool, error) {
 	indexName := getIndexName(collection)
 
 	// Check if index is loaded in cache tracking map
@@ -93,7 +93,7 @@ func (r *RedisCache) Get(ctx context.Context, collection string, vector []float3
 }
 
 // Set saves the search query vector and associated results into Redis.
-func (r *RedisCache) Set(ctx context.Context, collection string, vector []float32, resp *search.SearchResponse) error {
+func (r *RedisCache) Set(ctx context.Context, collection string, vector []float32, resp *store.SearchResponse) error {
 	_, created := r.createdIndices.Load(collection)
 	if !created {
 		if err := r.createIndex(ctx, collection, len(vector)); err != nil {
@@ -198,7 +198,7 @@ func float32SliceToBytes(vec []float32) ([]byte, error) {
 }
 
 // Parses FT.Search raw response interface
-func parseSearchResults(res any, threshold float32, topK int32) (*search.SearchResponse, bool, error) {
+func parseSearchResults(res any, threshold float32, topK int32) (*store.SearchResponse, bool, error) {
 	arr, ok := res.([]any)
 	if !ok || len(arr) < 3 {
 		return nil, false, nil
@@ -253,8 +253,8 @@ func parseSearchResults(res any, threshold float32, topK int32) (*search.SearchR
 		}
 	}
 
-	// Deserialize JSON string into structured search.SearchResponse
-	var searchResp search.SearchResponse
+	// Deserialize JSON string into structured store.SearchResponse
+	var searchResp store.SearchResponse
 	if err := json.Unmarshal([]byte(jsonResponse), &searchResp); err != nil {
 		return nil, false, fmt.Errorf("failed to deserialize cached response: %v", err)
 	}
