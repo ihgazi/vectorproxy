@@ -37,7 +37,6 @@ func main() {
 	// Logging -> Embedding -> Request Coalescing -> Cache -> DB Search
 	var interceptors []middleware.Interceptor
 	interceptors = append(interceptors,
-		middleware.LoggingInterceptor,
 		embedInterceptor,
 		vectorCoalescer,
 	)
@@ -54,8 +53,13 @@ func main() {
 		interceptors...,
 	)
 
-	lis, _ := net.Listen("tcp", ":50051")
-	s := grpc.NewServer()
+	lis, err := net.Listen("tcp", ":50051")
+	if err != nil {
+		log.Fatalf("failed to listen on port 50051: %v", err)
+	}
+	s := grpc.NewServer(
+		grpc.UnaryInterceptor(server.LoggingInterceptor),
+	)
 	pb.RegisterProxyServiceServer(s, server.NewProxyServer(handler, store))
 
 	reflection.Register(s)

@@ -8,6 +8,7 @@ import (
 	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
 	"github.com/ihgazi/vectorproxy/internal/middleware"
 	"github.com/ihgazi/vectorproxy/internal/store"
+	"google.golang.org/grpc"
 )
 
 // A simple mock handler for testing
@@ -112,5 +113,27 @@ func TestProxyServer_ListCollections(t *testing.T) {
 	}
 	if resp.Collections[0] != "collection1" || resp.Collections[1] != "collection2" {
 		t.Errorf("expected %v, got %v", expectedCollections, resp.Collections)
+	}
+}
+
+func TestLoggingInterceptor(t *testing.T) {
+	expectedResp := "test response"
+	expectedErr := errors.New("test error")
+
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return expectedResp, expectedErr
+	}
+
+	info := &grpc.UnaryServerInfo{
+		FullMethod: "/proxy.v1.ProxyService/Test",
+	}
+
+	resp, err := LoggingInterceptor(context.Background(), nil, info, handler)
+
+	if resp != expectedResp {
+		t.Errorf("expected response %v, got %v", expectedResp, resp)
+	}
+	if err != expectedErr {
+		t.Errorf("expected error %v, got %v", expectedErr, err)
 	}
 }

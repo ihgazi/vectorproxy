@@ -3,11 +3,13 @@ package server
 import (
 	"context"
 	"log"
+	"time"
 
 	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
 	"github.com/ihgazi/vectorproxy/internal/middleware"
 	"github.com/ihgazi/vectorproxy/internal/store"
 
+	"google.golang.org/grpc"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -40,6 +42,22 @@ func (s *ProxyServer) ListCollections(ctx context.Context, req *pb.ListCollectio
 	}
 
 	return &pb.ListCollectionsResponse{Collections: collections}, nil
+}
+
+func LoggingInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	start := time.Now()
+	log.Printf("Incoming request: Method=%s", info.FullMethod)
+
+	resp, err := handler(ctx, req)
+
+	duration := time.Since(start)
+	if err != nil {
+		log.Printf("Request %s failed after %v: %v", info.FullMethod, duration, err)
+	} else {
+		log.Printf("Request %s successful after %v", info.FullMethod, duration)
+	}
+
+	return resp, err
 }
 
 func protoToDomainQuery(pbreq *pb.SearchRequest) *store.SearchQuery {
