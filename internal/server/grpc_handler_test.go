@@ -33,6 +33,9 @@ func (m *MockVectorStore) SearchBatch(ctx context.Context, reqs []*store.SearchQ
 func (m *MockVectorStore) ListCollections(ctx context.Context) ([]string, error) {
 	return m.Collections, m.Err
 }
+func (m *MockVectorStore) Upsert(ctx context.Context, req *store.UpsertQuery) error {
+	return nil
+}
 func (m *MockVectorStore) Close() error { return nil }
 
 func TestProxyServer_Search_HandlerCalled(t *testing.T) {
@@ -135,5 +138,22 @@ func TestLoggingInterceptor(t *testing.T) {
 	}
 	if err != expectedErr {
 		t.Errorf("expected error %v, got %v", expectedErr, err)
+	}
+}
+
+func TestProxyServer_Upsert(t *testing.T) {
+	store := &MockVectorStore{}
+	server := NewProxyServer(mockHandler(nil, nil), store)
+
+	req := &pb.UpsertRequest{
+		Collection: "test",
+		Points: []*pb.Point{
+			{Id: "1", Content: "foo"},
+			{Id: "2", Content: "bar"},
+		},
+	}
+	_, err := server.Upsert(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
 	}
 }

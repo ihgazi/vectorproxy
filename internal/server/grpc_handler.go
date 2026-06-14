@@ -44,6 +44,27 @@ func (s *ProxyServer) ListCollections(ctx context.Context, req *pb.ListCollectio
 	return &pb.ListCollectionsResponse{Collections: collections}, nil
 }
 
+func (s *ProxyServer) Upsert(ctx context.Context, req *pb.UpsertRequest) (*pb.UpsertResponse, error) {
+	var points []*store.Point
+
+	for _, pbPoint := range req.Points {
+		points = append(points, protoToDomainPoint(pbPoint))
+
+	}
+
+	up := &store.UpsertQuery{
+		Collection: req.Collection,
+		Points:     points,
+	}
+
+	err := s.vectorStore.Upsert(ctx, up)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.UpsertResponse{}, nil
+}
+
 func LoggingInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	start := time.Now()
 	log.Printf("Incoming request: Method=%s", info.FullMethod)
@@ -101,4 +122,18 @@ func domainToProtoResponse(dmresp *store.SearchResponse) *pb.SearchResponse {
 	}
 
 	return &pb.SearchResponse{Results: protoResults}
+}
+
+func protoToDomainPoint(pbpoint *pb.Point) *store.Point {
+	payload := pbpoint.Payload.AsMap()
+	if payload == nil {
+		payload = make(map[string]any)
+	}
+
+	return &store.Point{
+		ID:      pbpoint.Id,
+		Vector:  pbpoint.Vector,
+		Content: pbpoint.Content,
+		Payload: payload,
+	}
 }

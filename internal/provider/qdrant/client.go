@@ -12,6 +12,9 @@ type QdrantClient interface {
 	Query(ctx context.Context, query *qdrant.QueryPoints) ([]*qdrant.ScoredPoint, error)
 	QueryBatch(ctx context.Context, query *qdrant.QueryBatchPoints) ([]*qdrant.BatchResult, error)
 	ListCollections(ctx context.Context) ([]string, error)
+	CollectionExists(ctx context.Context, collectionName string) (bool, error)
+	CreateCollection(ctx context.Context, req *qdrant.CreateCollection) error
+	Upsert(ctx context.Context, request *qdrant.UpsertPoints) (*qdrant.UpdateResult, error)
 	Close() error
 }
 
@@ -144,6 +147,52 @@ func (c *Client) Close() error {
 	return c.qClient.Close()
 }
 
+func (c *Client) Upsert(ctx context.Context, req *store.UpsertQuery) error {
+	exists, err := c.qClient.CollectionExists(ctx, req.Collection)
+	if err != nil {
+		return fmt.Errorf("Failed to check collection existence: %v", err)
+	}
+
+	if !exists {
+		var dimension uint64
+		if len(req.Points) > 0 && len(req.Points[0].Vector) > 0 {
+			dimension = uint64(len(req.Points[0].Vector))
+		} else {
+			return fmt.Errorf("Cannot create collection: vector dimension unknown")
+		}
+
+		if err := c.qClient.CreateCollection(ctx, &qdrant.CreateCollection{
+			CollectionName: req.Collection,
+			VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
+				Size:     dimension,
+				Distance: qdrant.Distance_Cosine,
+			}),
+		}); err != nil {
+			return fmt.Errorf("Failed to auto-create collection: %v", err)
+		}
+	}
+
+	// Qdrant Upsert API is asynchronous by default.
+	// We set Wait to true to ensure the operation completes before returning.
+	wait := true
+	up := &qdrant.UpsertPoints{
+		CollectionName: req.Collection,
+		Wait:           &wait,
+		Points:         buildPoints(req.Points),
+	}
+
+	resp, err := c.qClient.Upsert(ctx, up)
+	if err != nil {
+		return fmt.Errorf("Failed to upsert points: %v", err)
+	}
+
+	if resp.Status != qdrant.UpdateStatus_Completed {
+		return fmt.Errorf("Failed to upsert points: Qdrant responded with status %s", resp.Status.String())
+	}
+
+	return nil
+}
+
 func buildResult(point *qdrant.ScoredPoint) store.SearchResult {
 	var mp map[string]any
 
@@ -177,4 +226,26 @@ func translateFilter(mp map[string]string) (*qdrant.Filter, error) {
 	return &qdrant.Filter{
 		Must: conditions,
 	}, nil
+}
+
+func buildPoints(points []*store.Point) []*qdrant.PointStruct {
+	var res []*qdrant.PointStruct
+
+	for _, p := range points {
+		payload := make(map[string]*qdrant.Value)
+
+		payload["content"] = qdrant.NewValueString(p.Content)
+
+		for k, v := range p.Payload {
+			payload[k] = qdrant.NewValueString(fmt.Sprintf("%v", v)) // TODO: Currently supporting only string payload, need to look into supporting generic payload types
+		}
+
+		res = append(res, &qdrant.PointStruct{
+			Id:      qdrant.NewID(p.ID),
+			Vectors: qdrant.NewVectors(p.Vector...),
+			Payload: payload,
+		})
+	}
+
+	return res
 }

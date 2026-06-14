@@ -30,7 +30,22 @@ message ListCollectionsResponse {
   repeated string collections = 1;
 }
 
+message Point {
+  string id = 1;
+  repeated float vector = 2; // Optional if content is provided
+  string content = 3; // The raw text to be automatically embedded
+  google.protobuf.Struct payload = 4;
+}
+
+message UpsertRequest {
+  string collection = 1;
+  repeated Point points = 2;
+}
+
+message UpsertResponse {}
+
 service ProxyService {
   rpc Search(SearchRequest) returns (SearchResponse);
   rpc ListCollections(ListCollectionsRequest) returns (ListCollectionsResponse);
+  rpc Upsert(UpsertRequest) returns (UpsertResponse);
 }

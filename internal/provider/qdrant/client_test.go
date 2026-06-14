@@ -23,6 +23,17 @@ func (m *MockQdrantClient) QueryBatch(ctx context.Context, req *qdrant.QueryBatc
 func (m *MockQdrantClient) ListCollections(ctx context.Context) ([]string, error) {
 	return []string{"test-collection"}, nil
 }
+func (m *MockQdrantClient) CollectionExists(ctx context.Context, collectionName string) (bool, error) {
+	return true, nil
+}
+func (m *MockQdrantClient) CreateCollection(ctx context.Context, req *qdrant.CreateCollection) error {
+	return nil
+}
+func (m *MockQdrantClient) Upsert(ctx context.Context, request *qdrant.UpsertPoints) (*qdrant.UpdateResult, error) {
+	status := qdrant.UpdateStatus_Completed
+	opID := uint64(len(request.Points))
+	return &qdrant.UpdateResult{Status: status, OperationId: &opID}, nil
+}
 func (m *MockQdrantClient) Close() error { return nil }
 
 func TestTranslateFilter(t *testing.T) {
