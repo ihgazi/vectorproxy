@@ -31,7 +31,34 @@ func (e *OllamaEmbedder) Embed(ctx context.Context, text string) ([]float32, err
 		return nil, fmt.Errorf("Invalid embedding request: %v", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/api/embed", e.BaseURL), bytes.NewBuffer(reqBody))
+	res, err := e.getEmbedding(ctx, fmt.Sprintf("%s/api/embed", e.BaseURL), reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	return res[0], nil
+}
+
+func (e *OllamaEmbedder) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
+	reqBody, err := json.Marshal(map[string]interface{}{
+		"model": e.Model,
+		"input": texts,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("Invalid embedding request: %v", err)
+	}
+
+	res, err := e.getEmbedding(ctx, fmt.Sprintf("%s/api/embed", e.BaseURL), reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func (e *OllamaEmbedder) getEmbedding(ctx context.Context, url string, payload []byte) ([][]float32, error) {
+	req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/api/embed", e.BaseURL), bytes.NewBuffer(payload))
 	if err != nil {
 		return nil, fmt.Errorf("Failed to fetch embedding from Ollama: %v", err)
 	}
@@ -54,5 +81,5 @@ func (e *OllamaEmbedder) Embed(ctx context.Context, text string) ([]float32, err
 		return nil, fmt.Errorf("Failed to decode Ollama embedding response: %v", err)
 	}
 
-	return res.Embeddings[0], nil
+	return res.Embeddings, err
 }

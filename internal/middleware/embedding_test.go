@@ -21,6 +21,21 @@ func (m *mockEmbedder) Embed(ctx context.Context, text string) ([]float32, error
 	return []float32{0.1, 0.2}, nil
 }
 
+func (m *mockEmbedder) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
+	if m.EmbedFunc != nil {
+		results := make([][]float32, len(texts))
+		for i, text := range texts {
+			vec, err := m.EmbedFunc(ctx, text)
+			if err != nil {
+				return nil, err
+			}
+			results[i] = vec
+		}
+		return results, nil
+	}
+	return [][]float32{{0.1, 0.2}}, nil
+}
+
 func TestEmbeddingInterceptor_SingleRequest(t *testing.T) {
 	embedCalled := false
 	me := &mockEmbedder{

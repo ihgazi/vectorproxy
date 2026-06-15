@@ -28,6 +28,10 @@ func (m *MockSemanticCache) Set(ctx context.Context, collection string, vector [
 	return nil
 }
 
+func (m *MockSemanticCache) Invalidate(ctx context.Context, collection string) error {
+	return nil
+}
+
 func (m *MockSemanticCache) Close() error { return nil }
 
 func TestCacheInterceptor_BypassWhenNoVector(t *testing.T) {

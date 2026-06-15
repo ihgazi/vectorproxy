@@ -3,13 +3,14 @@ package middleware
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/ihgazi/vectorproxy/internal/cache"
 	"github.com/ihgazi/vectorproxy/internal/store"
 )
 
 // NewCacheInterceptor creates a SearchHandler middleware that hooks up the SemanticCache plugin.
-func NewCacheInterceptor(c cache.SemanticCache) Interceptor {
+func NewCacheInterceptor(c cache.SemanticCache) SearchInterceptor {
 	return func(next SearchHandler) SearchHandler {
 		return func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
 			// A query vector is required to perform semantic cache lookups.
@@ -44,6 +45,29 @@ func NewCacheInterceptor(c cache.SemanticCache) Interceptor {
 			}
 
 			return dbResp, nil
+		}
+	}
+}
+
+// NewCacheInvalidationInterceptor invalidates all cached entries for a collection on successful upsert.
+func NewCacheInvalidationInterceptor(c cache.SemanticCache) UpsertInterceptor {
+	return func(next UpsertHandler) UpsertHandler {
+		return func(ctx context.Context, req *store.UpsertQuery) error {
+			// First, execute the upsert in the database
+			err := next(ctx, req)
+
+			// If the upsert succeeds, invalidate the cache for this collection
+			if err == nil && c != nil {
+				go func(col string) {
+					invCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+
+					if invErr := c.Invalidate(invCtx, col); invErr != nil {
+						log.Printf("Failed to invalidate cache for collection %s: %v", col, invErr)
+					}
+				}(req.Collection)
+			}
+			return err
 		}
 	}
 }

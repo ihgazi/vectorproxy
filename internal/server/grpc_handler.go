@@ -15,18 +15,19 @@ import (
 
 type ProxyServer struct {
 	pb.UnimplementedProxyServiceServer
-	handler     middleware.SearchHandler
-	vectorStore store.VectorStore
+	searchHandler middleware.SearchHandler
+	upsertHandler middleware.UpsertHandler
+	vectorStore   store.VectorStore
 }
 
-func NewProxyServer(h middleware.SearchHandler, store store.VectorStore) *ProxyServer {
-	return &ProxyServer{handler: h, vectorStore: store}
+func NewProxyServer(sh middleware.SearchHandler, uh middleware.UpsertHandler, store store.VectorStore) *ProxyServer {
+	return &ProxyServer{searchHandler: sh, upsertHandler: uh, vectorStore: store}
 }
 
 func (s *ProxyServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error) {
 	qry := protoToDomainQuery(req)
 
-	resp, err := s.handler(ctx, qry)
+	resp, err := s.searchHandler(ctx, qry)
 
 	if err != nil {
 		return nil, err
@@ -57,7 +58,7 @@ func (s *ProxyServer) Upsert(ctx context.Context, req *pb.UpsertRequest) (*pb.Up
 		Points:     points,
 	}
 
-	err := s.vectorStore.Upsert(ctx, up)
+	err := s.upsertHandler(ctx, up)
 	if err != nil {
 		return nil, err
 	}

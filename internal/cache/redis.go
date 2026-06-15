@@ -132,6 +132,35 @@ func (r *RedisCache) Set(ctx context.Context, collection string, vector []float3
 	return nil
 }
 
+// Invalidate deletes all cached entries for a specific collection.
+func (r *RedisCache) Invalidate(ctx context.Context, collection string) error {
+	prefix := getPrefix(collection)
+
+	var cursor uint64
+	var totalDeleted int
+	for {
+		keys, nextCursor, err := r.client.Scan(ctx, cursor, prefix+"*", 100).Result()
+		if err != nil {
+			return fmt.Errorf("failed to scan keys for invalidation: %v", err)
+		}
+		if len(keys) > 0 {
+			if err := r.client.Del(ctx, keys...).Err(); err != nil {
+				return fmt.Errorf("failed to delete cached keys: %v", err)
+			}
+			totalDeleted += len(keys)
+		}
+		cursor = nextCursor
+		if cursor == 0 {
+			break
+		}
+	}
+	
+	if totalDeleted > 0 {
+		log.Printf("Invalidated %d cache entries for collection: %s", totalDeleted, collection)
+	}
+	return nil
+}
+
 // Close closes the Redis client connection.
 func (r *RedisCache) Close() error {
 	return r.client.Close()

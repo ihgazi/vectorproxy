@@ -15,6 +15,9 @@ type SemanticCache interface {
 	// Set stores the query vector and associated search response in the cache.
 	Set(ctx context.Context, collection string, vector []float32, resp *store.SearchResponse) error
 
+	// Invalidate deletes all cached entries for a specific collection.
+	Invalidate(ctx context.Context, collection string) error
+
 	// Close terminates any active connections or resources used by the cache.
 	Close() error
 }

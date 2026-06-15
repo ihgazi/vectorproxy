@@ -9,7 +9,7 @@ import (
 )
 
 // NewCoalesceInterceptor wraps a search handler with Request Coalescing.
-func NewCoalesceInterceptor(generator keygen.KeyGenerator, minK int32) Interceptor {
+func NewCoalesceInterceptor(generator keygen.KeyGenerator, minK int32) SearchInterceptor {
 	c := coalesce.New(generator, minK)
 	return func(next SearchHandler) SearchHandler {
 		return func(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {

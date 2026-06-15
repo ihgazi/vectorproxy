@@ -21,36 +21,51 @@ import (
 func main() {
 	store, _ := provider.NewVectorStore("qdrant", "localhost", 6334)
 
-	embedInterceptor := middleware.NewEmbeddingInterceptor(embedding.NewOllamaEmbedder("http://localhost:11434", "nomic-embed-text"))
+	embedder := embedding.NewOllamaEmbedder("http://localhost:11434", "nomic-embed-text")
+	embedInterceptor := middleware.NewEmbeddingInterceptor(embedder)
 
-	var cacheInterceptor middleware.Interceptor
+	var searchCacheInterceptor middleware.SearchInterceptor
+	var upsertCacheInterceptor middleware.UpsertInterceptor
 	semCache := initializeCache()
 	if semCache != nil {
-		cacheInterceptor = middleware.NewCacheInterceptor(semCache)
+		searchCacheInterceptor = middleware.NewCacheInterceptor(semCache)
+		upsertCacheInterceptor = middleware.NewCacheInvalidationInterceptor(semCache)
 		defer semCache.Close()
 	}
 
 	// TODO: Make MinK value configurable
 	vectorCoalescer := middleware.NewCoalesceInterceptor(keygen.NewVectorKeyGenerator(), 10)
 
-	// Assemble middleware pipeline in execution order:
+	// Assemble Search pipeline in execution order:
 	// Logging -> Embedding -> Request Coalescing -> Cache -> DB Search
-	var interceptors []middleware.Interceptor
+	var interceptors []middleware.SearchInterceptor
 	interceptors = append(interceptors,
 		embedInterceptor,
 		vectorCoalescer,
 	)
-	if cacheInterceptor != nil {
-		interceptors = append(interceptors, cacheInterceptor)
+	if searchCacheInterceptor != nil {
+		interceptors = append(interceptors, searchCacheInterceptor)
+	}
+
+	// Assemble Upsert pipeline:
+	var upsertInterceptors []middleware.UpsertInterceptor
+	upsertInterceptors = append(upsertInterceptors, middleware.NewUpsertEmbeddingInterceptor(embedder))
+	if upsertCacheInterceptor != nil {
+		upsertInterceptors = append(upsertInterceptors, upsertCacheInterceptor)
 	}
 
 	batchSize := 10 // TODO: Make this configurable
 	batcher := batch.New(store.SearchBatch, batchSize, 100*time.Millisecond)
 	go batcher.FlushLoop()
 
-	handler := middleware.Chain(
+	searchHandler := middleware.SearchChain(
 		batcher.Search,
 		interceptors...,
+	)
+
+	upsertHandler := middleware.UpsertChain(
+		store.Upsert,
+		upsertInterceptors...,
 	)
 
 	lis, err := net.Listen("tcp", ":50051")
@@ -60,7 +75,7 @@ func main() {
 	s := grpc.NewServer(
 		grpc.UnaryInterceptor(server.LoggingInterceptor),
 	)
-	pb.RegisterProxyServiceServer(s, server.NewProxyServer(handler, store))
+	pb.RegisterProxyServiceServer(s, server.NewProxyServer(searchHandler, upsertHandler, store))
 
 	reflection.Register(s)
 

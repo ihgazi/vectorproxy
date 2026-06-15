@@ -18,6 +18,13 @@ func mockHandler(resp *store.SearchResponse, err error) middleware.SearchHandler
 	}
 }
 
+// A simple mock upsert handler for testing
+func mockUpsertHandler(err error) middleware.UpsertHandler {
+	return func(ctx context.Context, req *store.UpsertQuery) error {
+		return err
+	}
+}
+
 // MockVectorStore for testing
 type MockVectorStore struct {
 	Collections []string
@@ -42,7 +49,7 @@ func TestProxyServer_Search_HandlerCalled(t *testing.T) {
 	expectedResp := store.SearchResponse{Results: []store.SearchResult{{ID: "1"}}}
 	handler := mockHandler(&expectedResp, nil)
 	store := &MockVectorStore{}
-	server := NewProxyServer(handler, store)
+	server := NewProxyServer(handler, mockUpsertHandler(nil), store)
 
 	req := &pb.SearchRequest{Collection: "test"}
 	resp, err := server.Search(context.Background(), req)
@@ -64,12 +71,12 @@ func TestProxyServer_Search_InterceptorCalled(t *testing.T) {
 		}
 	}
 	expectedResp := store.SearchResponse{Results: []store.SearchResult{{ID: "2"}}}
-	handler := middleware.Chain(
+	handler := middleware.SearchChain(
 		mockHandler(&expectedResp, nil),
 		interceptor,
 	)
 	store := &MockVectorStore{}
-	server := NewProxyServer(handler, store)
+	server := NewProxyServer(handler, mockUpsertHandler(nil), store)
 
 	req := &pb.SearchRequest{Collection: "test"}
 	resp, err := server.Search(context.Background(), req)
@@ -89,7 +96,7 @@ func TestProxyServer_Search_HandlerError(t *testing.T) {
 	expectedErr := errors.New("handler error")
 	handler := mockHandler(nil, expectedErr)
 	store := &MockVectorStore{}
-	server := NewProxyServer(handler, store)
+	server := NewProxyServer(handler, mockUpsertHandler(nil), store)
 
 	req := &pb.SearchRequest{Collection: "test"}
 	_, err := server.Search(context.Background(), req)
@@ -104,7 +111,7 @@ func TestProxyServer_Search_HandlerError(t *testing.T) {
 func TestProxyServer_ListCollections(t *testing.T) {
 	expectedCollections := []string{"collection1", "collection2"}
 	store := &MockVectorStore{Collections: expectedCollections}
-	server := NewProxyServer(mockHandler(nil, nil), store)
+	server := NewProxyServer(mockHandler(nil, nil), mockUpsertHandler(nil), store)
 
 	req := &pb.ListCollectionsRequest{}
 	resp, err := server.ListCollections(context.Background(), req)
@@ -143,7 +150,7 @@ func TestLoggingInterceptor(t *testing.T) {
 
 func TestProxyServer_Upsert(t *testing.T) {
 	store := &MockVectorStore{}
-	server := NewProxyServer(mockHandler(nil, nil), store)
+	server := NewProxyServer(mockHandler(nil, nil), mockUpsertHandler(nil), store)
 
 	req := &pb.UpsertRequest{
 		Collection: "test",
