@@ -2,10 +2,13 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
 	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
+	"github.com/ihgazi/vectorproxy/internal/cache"
+	"github.com/ihgazi/vectorproxy/internal/embedding"
 	"github.com/ihgazi/vectorproxy/internal/middleware"
 	"github.com/ihgazi/vectorproxy/internal/store"
 
@@ -16,12 +19,13 @@ import (
 type ProxyServer struct {
 	pb.UnimplementedProxyServiceServer
 	searchHandler middleware.SearchHandler
-	upsertHandler middleware.UpsertHandler
 	vectorStore   store.VectorStore
+	embedder      embedding.Embedder
+	cache         cache.SemanticCache
 }
 
-func NewProxyServer(sh middleware.SearchHandler, uh middleware.UpsertHandler, store store.VectorStore) *ProxyServer {
-	return &ProxyServer{searchHandler: sh, upsertHandler: uh, vectorStore: store}
+func NewProxyServer(sh middleware.SearchHandler, store store.VectorStore, e embedding.Embedder, c cache.SemanticCache) *ProxyServer {
+	return &ProxyServer{searchHandler: sh, vectorStore: store, embedder: e, cache: c}
 }
 
 func (s *ProxyServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.SearchResponse, error) {
@@ -50,7 +54,11 @@ func (s *ProxyServer) Upsert(ctx context.Context, req *pb.UpsertRequest) (*pb.Up
 
 	for _, pbPoint := range req.Points {
 		points = append(points, protoToDomainPoint(pbPoint))
+	}
 
+	// Embed points that have content but no vector
+	if err := s.embedPoints(ctx, points); err != nil {
+		return nil, err
 	}
 
 	up := &store.UpsertQuery{
@@ -58,12 +66,77 @@ func (s *ProxyServer) Upsert(ctx context.Context, req *pb.UpsertRequest) (*pb.Up
 		Points:     points,
 	}
 
-	err := s.upsertHandler(ctx, up)
-	if err != nil {
+	if err := s.vectorStore.Upsert(ctx, up); err != nil {
 		return nil, err
 	}
 
+	s.invalidateCache(req.Collection)
+
 	return &pb.UpsertResponse{}, nil
+}
+
+// embedPoints generates vector embeddings for points that have content but no pre-computed vector.
+func (s *ProxyServer) embedPoints(ctx context.Context, points []*store.Point) error {
+	var texts []string
+	var indexes []int
+
+	for i, p := range points {
+		if len(p.Vector) == 0 && p.Content != "" {
+			texts = append(texts, p.Content)
+			indexes = append(indexes, i)
+		}
+	}
+
+	if len(texts) == 0 {
+		return nil
+	}
+
+	vectors, err := s.embedder.EmbedBatch(ctx, texts)
+	if err != nil {
+		return fmt.Errorf("failed to generate batch embeddings: %w", err)
+	}
+	if len(vectors) != len(texts) {
+		return fmt.Errorf("embedding batch size mismatch: expected %d, got %d", len(texts), len(vectors))
+	}
+
+	for i, vec := range vectors {
+		points[indexes[i]].Vector = vec
+	}
+	return nil
+}
+
+func (s *ProxyServer) DeleteCollection(ctx context.Context, req *pb.DeleteCollectionRequest) (*pb.DeleteCollectionResponse, error) {
+	if err := s.vectorStore.DeleteCollection(ctx, req.Collection); err != nil {
+		return nil, err
+	}
+
+	s.invalidateCache(req.Collection)
+
+	return &pb.DeleteCollectionResponse{}, nil
+}
+
+func (s *ProxyServer) DeletePoints(ctx context.Context, req *pb.DeletePointsRequest) (*pb.DeletePointsResponse, error) {
+	if err := s.vectorStore.DeletePoints(ctx, req.Collection, req.Ids); err != nil {
+		return nil, err
+	}
+
+	s.invalidateCache(req.Collection)
+
+	return &pb.DeletePointsResponse{}, nil
+}
+
+// invalidateCache asynchronously clears cached entries for a collection.
+func (s *ProxyServer) invalidateCache(collection string) {
+	if s.cache == nil {
+		return
+	}
+	go func(col string) {
+		invCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := s.cache.Invalidate(invCtx, col); err != nil {
+			log.Printf("Failed to invalidate cache for collection %s: %v", col, err)
+		}
+	}(collection)
 }
 
 func LoggingInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {

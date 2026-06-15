@@ -16,6 +16,7 @@ type SearchQuery struct {
 }
 
 // SearchResult represents a single search result returned from the vector store.
+// TODO: Add content field directly to SearchResult
 type SearchResult struct {
 	ID      string
 	Score   float32
@@ -49,5 +50,7 @@ type VectorStore interface {
 	SearchBatch(ctx context.Context, reqs []*SearchQuery) ([]*SearchResponse, error)
 	ListCollections(ctx context.Context) ([]string, error)
 	Upsert(ctx context.Context, req *UpsertQuery) error
+	DeleteCollection(ctx context.Context, collection string) error
+	DeletePoints(ctx context.Context, collection string, ids []string) error
 	Close() error
 }

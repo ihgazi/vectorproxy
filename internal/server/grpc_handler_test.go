@@ -18,11 +18,18 @@ func mockHandler(resp *store.SearchResponse, err error) middleware.SearchHandler
 	}
 }
 
-// A simple mock upsert handler for testing
-func mockUpsertHandler(err error) middleware.UpsertHandler {
-	return func(ctx context.Context, req *store.UpsertQuery) error {
-		return err
+// MockEmbedder for testing
+type MockEmbedder struct{}
+
+func (m *MockEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {
+	return []float32{0.1, 0.2, 0.3}, nil
+}
+func (m *MockEmbedder) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
+	vectors := make([][]float32, len(texts))
+	for i := range texts {
+		vectors[i] = []float32{0.1, 0.2, 0.3}
 	}
+	return vectors, nil
 }
 
 // MockVectorStore for testing
@@ -43,13 +50,19 @@ func (m *MockVectorStore) ListCollections(ctx context.Context) ([]string, error)
 func (m *MockVectorStore) Upsert(ctx context.Context, req *store.UpsertQuery) error {
 	return nil
 }
+func (m *MockVectorStore) DeleteCollection(ctx context.Context, collection string) error {
+	return m.Err
+}
+func (m *MockVectorStore) DeletePoints(ctx context.Context, collection string, ids []string) error {
+	return m.Err
+}
 func (m *MockVectorStore) Close() error { return nil }
 
 func TestProxyServer_Search_HandlerCalled(t *testing.T) {
 	expectedResp := store.SearchResponse{Results: []store.SearchResult{{ID: "1"}}}
 	handler := mockHandler(&expectedResp, nil)
 	store := &MockVectorStore{}
-	server := NewProxyServer(handler, mockUpsertHandler(nil), store)
+	server := NewProxyServer(handler, store, &MockEmbedder{}, nil)
 
 	req := &pb.SearchRequest{Collection: "test"}
 	resp, err := server.Search(context.Background(), req)
@@ -71,12 +84,12 @@ func TestProxyServer_Search_InterceptorCalled(t *testing.T) {
 		}
 	}
 	expectedResp := store.SearchResponse{Results: []store.SearchResult{{ID: "2"}}}
-	handler := middleware.SearchChain(
+	handler := middleware.Chain(
 		mockHandler(&expectedResp, nil),
 		interceptor,
 	)
 	store := &MockVectorStore{}
-	server := NewProxyServer(handler, mockUpsertHandler(nil), store)
+	server := NewProxyServer(handler, store, &MockEmbedder{}, nil)
 
 	req := &pb.SearchRequest{Collection: "test"}
 	resp, err := server.Search(context.Background(), req)
@@ -96,7 +109,7 @@ func TestProxyServer_Search_HandlerError(t *testing.T) {
 	expectedErr := errors.New("handler error")
 	handler := mockHandler(nil, expectedErr)
 	store := &MockVectorStore{}
-	server := NewProxyServer(handler, mockUpsertHandler(nil), store)
+	server := NewProxyServer(handler, store, &MockEmbedder{}, nil)
 
 	req := &pb.SearchRequest{Collection: "test"}
 	_, err := server.Search(context.Background(), req)
@@ -111,7 +124,7 @@ func TestProxyServer_Search_HandlerError(t *testing.T) {
 func TestProxyServer_ListCollections(t *testing.T) {
 	expectedCollections := []string{"collection1", "collection2"}
 	store := &MockVectorStore{Collections: expectedCollections}
-	server := NewProxyServer(mockHandler(nil, nil), mockUpsertHandler(nil), store)
+	server := NewProxyServer(mockHandler(nil, nil), store, &MockEmbedder{}, nil)
 
 	req := &pb.ListCollectionsRequest{}
 	resp, err := server.ListCollections(context.Background(), req)
@@ -150,7 +163,7 @@ func TestLoggingInterceptor(t *testing.T) {
 
 func TestProxyServer_Upsert(t *testing.T) {
 	store := &MockVectorStore{}
-	server := NewProxyServer(mockHandler(nil, nil), mockUpsertHandler(nil), store)
+	server := NewProxyServer(mockHandler(nil, nil), store, &MockEmbedder{}, nil)
 
 	req := &pb.UpsertRequest{
 		Collection: "test",
@@ -160,6 +173,31 @@ func TestProxyServer_Upsert(t *testing.T) {
 		},
 	}
 	_, err := server.Upsert(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
+func TestProxyServer_DeleteCollection(t *testing.T) {
+	store := &MockVectorStore{}
+	server := NewProxyServer(mockHandler(nil, nil), store, &MockEmbedder{}, nil)
+
+	req := &pb.DeleteCollectionRequest{Collection: "test"}
+	_, err := server.DeleteCollection(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
+func TestProxyServer_DeletePoints(t *testing.T) {
+	store := &MockVectorStore{}
+	server := NewProxyServer(mockHandler(nil, nil), store, &MockEmbedder{}, nil)
+
+	req := &pb.DeletePointsRequest{
+		Collection: "test",
+		Ids:        []string{"1", "2", "3"},
+	}
+	_, err := server.DeletePoints(context.Background(), req)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

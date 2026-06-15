@@ -24,12 +24,10 @@ func main() {
 	embedder := embedding.NewOllamaEmbedder("http://localhost:11434", "nomic-embed-text")
 	embedInterceptor := middleware.NewEmbeddingInterceptor(embedder)
 
-	var searchCacheInterceptor middleware.SearchInterceptor
-	var upsertCacheInterceptor middleware.UpsertInterceptor
+	var searchCacheInterceptor middleware.Interceptor
 	semCache := initializeCache()
 	if semCache != nil {
 		searchCacheInterceptor = middleware.NewCacheInterceptor(semCache)
-		upsertCacheInterceptor = middleware.NewCacheInvalidationInterceptor(semCache)
 		defer semCache.Close()
 	}
 
@@ -38,7 +36,7 @@ func main() {
 
 	// Assemble Search pipeline in execution order:
 	// Logging -> Embedding -> Request Coalescing -> Cache -> DB Search
-	var interceptors []middleware.SearchInterceptor
+	var interceptors []middleware.Interceptor
 	interceptors = append(interceptors,
 		embedInterceptor,
 		vectorCoalescer,
@@ -47,25 +45,13 @@ func main() {
 		interceptors = append(interceptors, searchCacheInterceptor)
 	}
 
-	// Assemble Upsert pipeline:
-	var upsertInterceptors []middleware.UpsertInterceptor
-	upsertInterceptors = append(upsertInterceptors, middleware.NewUpsertEmbeddingInterceptor(embedder))
-	if upsertCacheInterceptor != nil {
-		upsertInterceptors = append(upsertInterceptors, upsertCacheInterceptor)
-	}
-
 	batchSize := 10 // TODO: Make this configurable
 	batcher := batch.New(store.SearchBatch, batchSize, 100*time.Millisecond)
 	go batcher.FlushLoop()
 
-	searchHandler := middleware.SearchChain(
+	searchHandler := middleware.Chain(
 		batcher.Search,
 		interceptors...,
-	)
-
-	upsertHandler := middleware.UpsertChain(
-		store.Upsert,
-		upsertInterceptors...,
 	)
 
 	lis, err := net.Listen("tcp", ":50051")
@@ -75,7 +61,7 @@ func main() {
 	s := grpc.NewServer(
 		grpc.UnaryInterceptor(server.LoggingInterceptor),
 	)
-	pb.RegisterProxyServiceServer(s, server.NewProxyServer(searchHandler, upsertHandler, store))
+	pb.RegisterProxyServiceServer(s, server.NewProxyServer(searchHandler, store, embedder, semCache))
 
 	reflection.Register(s)
 

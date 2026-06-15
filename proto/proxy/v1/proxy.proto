@@ -42,10 +42,25 @@ message UpsertRequest {
   repeated Point points = 2;
 }
 
+message DeleteCollectionRequest {
+  string collection = 1;
+}
+
+message DeleteCollectionResponse {}
+
+message DeletePointsRequest {
+  string collection = 1;
+  repeated string ids = 2;
+}
+
+message DeletePointsResponse {}
+
 message UpsertResponse {}
 
 service ProxyService {
   rpc Search(SearchRequest) returns (SearchResponse);
   rpc ListCollections(ListCollectionsRequest) returns (ListCollectionsResponse);
   rpc Upsert(UpsertRequest) returns (UpsertResponse);
+  rpc DeleteCollection(DeleteCollectionRequest) returns (DeleteCollectionResponse);
+  rpc DeletePoints(DeletePointsRequest) returns (DeletePointsResponse);
 }

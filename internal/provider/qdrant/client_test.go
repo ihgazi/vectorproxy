@@ -34,6 +34,12 @@ func (m *MockQdrantClient) Upsert(ctx context.Context, request *qdrant.UpsertPoi
 	opID := uint64(len(request.Points))
 	return &qdrant.UpdateResult{Status: status, OperationId: &opID}, nil
 }
+func (m *MockQdrantClient) DeleteCollection(ctx context.Context, collectionName string) error {
+	return nil
+}
+func (m *MockQdrantClient) Delete(ctx context.Context, request *qdrant.DeletePoints) (*qdrant.UpdateResult, error) {
+	return &qdrant.UpdateResult{Status: qdrant.UpdateStatus_Completed}, nil
+}
 func (m *MockQdrantClient) Close() error { return nil }
 
 func TestTranslateFilter(t *testing.T) {

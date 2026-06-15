@@ -14,7 +14,9 @@ type QdrantClient interface {
 	ListCollections(ctx context.Context) ([]string, error)
 	CollectionExists(ctx context.Context, collectionName string) (bool, error)
 	CreateCollection(ctx context.Context, req *qdrant.CreateCollection) error
+	DeleteCollection(ctx context.Context, collectionName string) error
 	Upsert(ctx context.Context, request *qdrant.UpsertPoints) (*qdrant.UpdateResult, error)
+	Delete(ctx context.Context, request *qdrant.DeletePoints) (*qdrant.UpdateResult, error)
 	Close() error
 }
 
@@ -190,6 +192,37 @@ func (c *Client) Upsert(ctx context.Context, req *store.UpsertQuery) error {
 		return fmt.Errorf("Failed to upsert points: Qdrant responded with status %s", resp.Status.String())
 	}
 
+	return nil
+}
+
+// DeleteCollection deletes an entire collection from the Qdrant vector store.
+func (c *Client) DeleteCollection(ctx context.Context, collection string) error {
+	if err := c.qClient.DeleteCollection(ctx, collection); err != nil {
+		return fmt.Errorf("Failed to delete collection: %v", err)
+	}
+	return nil
+}
+
+// DeletePoints deletes specific points by ID from a collection in the Qdrant vector store.
+func (c *Client) DeletePoints(ctx context.Context, collection string, ids []string) error {
+	pointIDs := make([]*qdrant.PointId, len(ids))
+	for i, id := range ids {
+		pointIDs[i] = qdrant.NewID(id)
+	}
+
+	wait := true
+	resp, err := c.qClient.Delete(ctx, &qdrant.DeletePoints{
+		CollectionName: collection,
+		Wait:           &wait,
+		Points:         qdrant.NewPointsSelector(pointIDs...),
+	})
+	if err != nil {
+		return fmt.Errorf("Failed to delete points: %v", err)
+	}
+
+	if resp.Status != qdrant.UpdateStatus_Completed {
+		return fmt.Errorf("Failed to delete points: Qdrant responded with status %s", resp.Status.String())
+	}
 	return nil
 }
 
