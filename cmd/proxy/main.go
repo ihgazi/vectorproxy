@@ -21,7 +21,11 @@ import (
 func main() {
 	store, _ := provider.NewVectorStore("qdrant", "localhost", 6334)
 
-	embedder := embedding.NewOllamaEmbedder("http://localhost:11434", "nomic-embed-text")
+	baseEmbedder := embedding.NewOllamaEmbedder("http://localhost:11434", "nomic-embed-text")
+	embedder, err := embedding.NewCachedEmbedder(baseEmbedder, 10000)
+	if err != nil {
+		log.Fatalf("failed to initialize exact string cache: %v", err)
+	}
 	embedInterceptor := middleware.NewEmbeddingInterceptor(embedder)
 
 	var searchCacheInterceptor middleware.Interceptor
