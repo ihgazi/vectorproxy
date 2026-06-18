@@ -4,6 +4,7 @@ import (
 	"context"
 
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/ihgazi/vectorproxy/internal/metrics"
 )
 
 // CachedEmbedder wraps an existing Embedder and caches exact string matches
@@ -31,8 +32,11 @@ func NewCachedEmbedder(base Embedder, capacity int) (*CachedEmbedder, error) {
 // it calls the underlying embedder and caches the result.
 func (c *CachedEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {
 	if vec, ok := c.cache.Get(text); ok {
+		metrics.CacheLookupsTotal.WithLabelValues("embedding_cache", "hit").Inc()
 		return vec, nil
 	}
+
+	metrics.CacheLookupsTotal.WithLabelValues("embedding_cache", "miss").Inc()
 
 	vec, err := c.base.Embed(ctx, text)
 	if err != nil {

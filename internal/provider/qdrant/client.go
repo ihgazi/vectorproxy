@@ -3,7 +3,9 @@ package qdrant
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/ihgazi/vectorproxy/internal/metrics"
 	"github.com/ihgazi/vectorproxy/internal/store"
 	"github.com/qdrant/go-client/qdrant"
 )
@@ -38,6 +40,11 @@ func NewClient(host string, port int) (store.VectorStore, error) {
 
 // Search executes a search query against the Qdrant vector store and returns the results.
 func (c *Client) Search(ctx context.Context, req *store.SearchQuery) (*store.SearchResponse, error) {
+	start := time.Now()
+	defer func() {
+		metrics.UpstreamDuration.WithLabelValues("qdrant", "search").Observe(time.Since(start).Seconds())
+	}()
+
 	topK := req.TopK
 	if topK == 0 {
 		topK = 10 // Default to limit 10 if not specified
@@ -79,9 +86,16 @@ func (c *Client) Search(ctx context.Context, req *store.SearchQuery) (*store.Sea
 
 // SearchBatch consolidates multiple search queries into a single batch request to Qdrant.
 func (c *Client) SearchBatch(ctx context.Context, reqs []*store.SearchQuery) ([]*store.SearchResponse, error) {
+	start := time.Now()
+	defer func() {
+		metrics.UpstreamDuration.WithLabelValues("qdrant", "search_batch").Observe(time.Since(start).Seconds())
+	}()
+
 	if len(reqs) == 0 {
 		return nil, nil
 	}
+
+	metrics.BatchSize.WithLabelValues("SearchBatch").Observe(float64(len(reqs)))
 
 	collection := reqs[0].Collection
 	var queryPoints []*qdrant.QueryPoints
@@ -137,6 +151,11 @@ func (c *Client) SearchBatch(ctx context.Context, reqs []*store.SearchQuery) ([]
 
 // ListCollections retrieves the list of collection names from the Qdrant vector store.
 func (c *Client) ListCollections(ctx context.Context) ([]string, error) {
+	start := time.Now()
+	defer func() {
+		metrics.UpstreamDuration.WithLabelValues("qdrant", "list_collections").Observe(time.Since(start).Seconds())
+	}()
+
 	collections, err := c.qClient.ListCollections(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to list collections: %v", err)
@@ -150,6 +169,13 @@ func (c *Client) Close() error {
 }
 
 func (c *Client) Upsert(ctx context.Context, req *store.UpsertQuery) error {
+	start := time.Now()
+	defer func() {
+		metrics.UpstreamDuration.WithLabelValues("qdrant", "upsert").Observe(time.Since(start).Seconds())
+	}()
+
+	metrics.BatchSize.WithLabelValues("Upsert").Observe(float64(len(req.Points)))
+
 	exists, err := c.qClient.CollectionExists(ctx, req.Collection)
 	if err != nil {
 		return fmt.Errorf("Failed to check collection existence: %v", err)
@@ -197,6 +223,11 @@ func (c *Client) Upsert(ctx context.Context, req *store.UpsertQuery) error {
 
 // DeleteCollection deletes an entire collection from the Qdrant vector store.
 func (c *Client) DeleteCollection(ctx context.Context, collection string) error {
+	start := time.Now()
+	defer func() {
+		metrics.UpstreamDuration.WithLabelValues("qdrant", "delete_collection").Observe(time.Since(start).Seconds())
+	}()
+
 	if err := c.qClient.DeleteCollection(ctx, collection); err != nil {
 		return fmt.Errorf("Failed to delete collection: %v", err)
 	}
@@ -205,6 +236,11 @@ func (c *Client) DeleteCollection(ctx context.Context, collection string) error 
 
 // DeletePoints deletes specific points by ID from a collection in the Qdrant vector store.
 func (c *Client) DeletePoints(ctx context.Context, collection string, ids []string) error {
+	start := time.Now()
+	defer func() {
+		metrics.UpstreamDuration.WithLabelValues("qdrant", "delete_points").Observe(time.Since(start).Seconds())
+	}()
+
 	pointIDs := make([]*qdrant.PointId, len(ids))
 	for i, id := range ids {
 		pointIDs[i] = qdrant.NewID(id)

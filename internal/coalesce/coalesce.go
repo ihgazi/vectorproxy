@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/ihgazi/vectorproxy/internal/keygen"
+	"github.com/ihgazi/vectorproxy/internal/metrics"
 	"github.com/ihgazi/vectorproxy/internal/store"
 )
 
@@ -49,6 +50,7 @@ func (c *CapacityCoalescer) Do(ctx context.Context, req *store.SearchQuery, fn H
 
 	if exists {
 		if req.TopK <= flight.dispatchedK {
+			metrics.CoalescedRequestsTotal.Inc()
 			c.mu.Unlock()
 			<-flight.done
 			if flight.err != nil {

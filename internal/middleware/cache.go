@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/ihgazi/vectorproxy/internal/cache"
+	"github.com/ihgazi/vectorproxy/internal/metrics"
 	"github.com/ihgazi/vectorproxy/internal/store"
 )
 
@@ -23,10 +24,12 @@ func NewCacheInterceptor(c cache.SemanticCache) Interceptor {
 				// Fail open on cache failures to guarantee service availability
 				log.Printf("Semantic cache lookup failed: %v. Bypassing to DB.", err)
 			} else if hit {
+				metrics.CacheLookupsTotal.WithLabelValues("semantic_cache", "hit").Inc()
 				log.Printf("Semantic cache HIT for collection: %s", req.Collection)
 				return cachedResp, nil
 			}
 
+			metrics.CacheLookupsTotal.WithLabelValues("semantic_cache", "miss").Inc()
 			log.Printf("Semantic cache MISS for collection: %s", req.Collection)
 
 			// Cache Miss: Execute actual database search

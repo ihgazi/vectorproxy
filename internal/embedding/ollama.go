@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
+
+	"github.com/ihgazi/vectorproxy/internal/metrics"
 )
 
 type OllamaEmbedder struct {
@@ -58,6 +61,11 @@ func (e *OllamaEmbedder) EmbedBatch(ctx context.Context, texts []string) ([][]fl
 }
 
 func (e *OllamaEmbedder) getEmbedding(ctx context.Context, url string, payload []byte) ([][]float32, error) {
+	start := time.Now()
+	defer func() {
+		metrics.UpstreamDuration.WithLabelValues("ollama", "embed").Observe(time.Since(start).Seconds())
+	}()
+
 	req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/api/embed", e.BaseURL), bytes.NewBuffer(payload))
 	if err != nil {
 		return nil, fmt.Errorf("Failed to fetch embedding from Ollama: %v", err)

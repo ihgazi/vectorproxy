@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net"
+	"net/http"
+	"time"
 
 	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
 	"github.com/ihgazi/vectorproxy/internal/batch"
@@ -12,8 +14,7 @@ import (
 	"github.com/ihgazi/vectorproxy/internal/middleware"
 	"github.com/ihgazi/vectorproxy/internal/provider"
 	"github.com/ihgazi/vectorproxy/internal/server"
-	"time"
-
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -62,6 +63,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to listen on port 50051: %v", err)
 	}
+
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		log.Println("Metrics server running on port 50052")
+		if err := http.ListenAndServe(":50052", nil); err != nil {
+			log.Fatalf("failed to start metrics server: %v", err)
+		}
+	}()
+
 	s := grpc.NewServer(
 		grpc.UnaryInterceptor(server.LoggingInterceptor),
 	)

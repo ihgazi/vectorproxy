@@ -9,6 +9,7 @@ import (
 	pb "github.com/ihgazi/vectorproxy/gen/go/proto/proxy/v1"
 	"github.com/ihgazi/vectorproxy/internal/cache"
 	"github.com/ihgazi/vectorproxy/internal/embedding"
+	"github.com/ihgazi/vectorproxy/internal/metrics"
 	"github.com/ihgazi/vectorproxy/internal/middleware"
 	"github.com/ihgazi/vectorproxy/internal/store"
 
@@ -146,11 +147,16 @@ func LoggingInterceptor(ctx context.Context, req interface{}, info *grpc.UnarySe
 	resp, err := handler(ctx, req)
 
 	duration := time.Since(start)
+	statusStr := "success"
 	if err != nil {
+		statusStr = "error"
 		log.Printf("Request %s failed after %v: %v", info.FullMethod, duration, err)
 	} else {
 		log.Printf("Request %s successful after %v", info.FullMethod, duration)
 	}
+
+	metrics.RequestsTotal.WithLabelValues(info.FullMethod, statusStr).Inc()
+	metrics.RequestDuration.WithLabelValues(info.FullMethod).Observe(duration.Seconds())
 
 	return resp, err
 }
