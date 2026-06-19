@@ -88,7 +88,7 @@ func initializeCache() cache.SemanticCache {
 		Provider:   "redis",
 		Host:       "localhost",
 		Port:       6379,
-		Threshold:  0.95,
+		Threshold:  0.90,
 		TTLSeconds: 300,
 	}
 	semCache, err := cache.NewSemanticCache(cacheCfg)

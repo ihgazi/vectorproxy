@@ -177,6 +177,10 @@ func protoToDomainQuery(pbreq *pb.SearchRequest) *store.SearchQuery {
 		searchFilter[k] = strVal
 	}
 
+	if pbreq.TopK == 0 {
+		pbreq.TopK = 3 // Default to 3 if limit is not specified
+	}
+
 	return &store.SearchQuery{
 		Collection: pbreq.Collection,
 		Vector:     pbreq.Vector,
