@@ -56,7 +56,7 @@
         {
           "datasource": "Prometheus",
           "editorMode": "code",
-          "expr": "rate(vectorproxy_requests_total[1m])",
+          "expr": "sum by (method, status) (rate(vectorproxy_requests_total[$__rate_interval]))",
           "legendFormat": "{{method}} ({{status}})",
           "range": true,
           "refId": "A"
@@ -112,7 +112,7 @@
         {
           "datasource": "Prometheus",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, rate(vectorproxy_request_duration_seconds_bucket[1m]))",
+          "expr": "histogram_quantile(0.99, sum by (le, method) (rate(vectorproxy_request_duration_seconds_bucket[$__rate_interval])))",
           "legendFormat": "P99 {{method}}",
           "range": true,
           "refId": "A"
@@ -120,7 +120,7 @@
         {
           "datasource": "Prometheus",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, rate(vectorproxy_request_duration_seconds_bucket[1m]))",
+          "expr": "histogram_quantile(0.50, sum by (le, method) (rate(vectorproxy_request_duration_seconds_bucket[$__rate_interval])))",
           "legendFormat": "P50 {{method}}",
           "range": true,
           "refId": "B"
@@ -176,7 +176,7 @@
         {
           "datasource": "Prometheus",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, rate(vectorproxy_upstream_duration_seconds_bucket[1m]))",
+          "expr": "histogram_quantile(0.95, sum by (le, dependency, operation) (rate(vectorproxy_upstream_duration_seconds_bucket[$__rate_interval])))",
           "legendFormat": "P95 {{dependency}} ({{operation}})",
           "range": true,
           "refId": "A"
@@ -232,7 +232,7 @@
         {
           "datasource": "Prometheus",
           "editorMode": "code",
-          "expr": "rate(vectorproxy_cache_lookups_total[1m])",
+          "expr": "sum by (cache_type, result) (rate(vectorproxy_cache_lookups_total[$__rate_interval]))",
           "legendFormat": "{{cache_type}} ({{result}})",
           "range": true,
           "refId": "A"
