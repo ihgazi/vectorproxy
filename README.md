@@ -74,7 +74,7 @@ VectorProxy utilizes a modular **Interceptor Pipeline**. A gRPC request flows th
 1. **Semantic Cache**: Checks Redis for previous search results that are highly semantically similar (e.g., using Cosine Distance) to the incoming query. If a match is found within a defined similarity threshold, it bypasses the database completely.
 2. **Embedding Interceptor**: Receives raw text strings from the user, forwards them to an external embedding provider (like Ollama), and injects the resulting float vectors back into the request context.
 3. **Request Coalescer**: Stops the "thundering herd" problem. If 100 users search for the exact same term at the same millisecond, this interceptor groups them into a single flight, queries the database once, and fans out the response to all 100 users.
-4. **Micro-Batching Engine**: Accumulates individual query requests over a tiny window (e.g., 10ms - 50ms). Once the window closes or the batch is full, it flushes all requests in a single network call to Qdrant (using Qdrant's `SearchBatch` API), massively increasing DB throughput.
+4. **Micro-Batching Engine**: Accumulates individual query requests over a tiny window (e.g., 10ms - 50ms). Once the window closes or the batch is full, it flushes all requests in a single network call as a batch request, massively increasing DB throughput.
 5. **Backend Vector Store Client**: The final driver that talks directly to Qdrant, Milvus, or Pinecone.
 
 ---
